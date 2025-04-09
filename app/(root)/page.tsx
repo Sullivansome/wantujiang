@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4 py-8">
       <section className="mb-12 text-center">
-        <h1 className="mb-4 text-4xl font-bold">AI 图片魔法生成</h1>
+        <h1 className="mb-4 text-4xl font-bold">AI 魔法重绘图片</h1>
         <p className="text-muted-foreground mb-6 text-lg">
           无需复杂指令，一键转换你的图片风格
         </p>
@@ -36,7 +36,7 @@ export default function Home() {
         <h2 className="mb-6 text-2xl font-semibold">热门风格</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
-            { name: "吉卜力", image: "/gallery/chinese-style.jpg" },
+            { name: "吉卜力", image: "/gallery/ghibli/1.png" },
             { name: "哆啦A梦", image: "/gallery/cartoon.jpg" },
             { name: "油画", image: "/gallery/oil-painting.jpg" },
             { name: "赛博朋克", image: "/gallery/cyberpunk.jpg" },

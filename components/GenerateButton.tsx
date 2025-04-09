@@ -12,7 +12,7 @@ export function GenerateButton({
   onError,
 }: {
   apiKey: string;
-  image: File | null;
+  image: string | null;
   presetId: string | null;
   onSuccess: (imageUrl: string) => void;
   onError: (message: string) => void;
@@ -26,14 +26,16 @@ export function GenerateButton({
     onError("");
 
     try {
-      const formData = new FormData();
-      formData.append("api_key", apiKey);
-      formData.append("image", image);
-      formData.append("style", presetId);
-
       const response = await fetch("/api/generate", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          apiKey,
+          image: image.split(",")[1], // base64 data only
+          presetId,
+        }),
       });
 
       if (!response.ok) {
@@ -41,8 +43,9 @@ export function GenerateButton({
         throw new Error(error.error || "Generation failed");
       }
 
-      const blob = await response.blob();
-      const imageUrl = URL.createObjectURL(blob);
+      const result = await response.json();
+      console.log(result);
+      const imageUrl = result.imageUrl;
       onSuccess(imageUrl);
     } catch (err) {
       onError((err as Error).message);

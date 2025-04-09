@@ -28,7 +28,7 @@ export function StylePresets({
         >
           <div className="relative mb-2 aspect-square">
             <Image
-              src={preset.thumbnail}
+              src={preset.preview}
               alt={preset.name}
               fill
               className="rounded-md object-cover"

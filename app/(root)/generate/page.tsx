@@ -1,55 +1,65 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { STYLE_PRESETS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Upload } from "lucide-react";
+import { Download } from "lucide-react";
 import { StylePresets } from "@/components/StylePresets";
 import { GenerateButton } from "@/components/GenerateButton";
+import { ImageUpload, ImagePreview } from "@/components/ImageUpload";
 import Image from "next/image";
 
 export default function GeneratePage() {
   const [apiKey, setApiKey] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [resultImage, setResultImage] = useState<string | null>(null);
+  const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (file: File) => {
+    setImage(file);
+    // Convert the file to base64
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImageBase64(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleDownload = () => {
-    if (!resultImage) return;
+    if (!resultImageUrl) return;
 
     const link = document.createElement("a");
-    link.href = resultImage;
-    link.download = `ai-generated-${Date.now()}.jpg`;
+    link.href = resultImageUrl;
+    link.download = `wantujiang-${Date.now()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    // Clear result after download
-    setResultImage(null);
+    setResultImageUrl(null);
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <Card className="mx-auto max-w-3xl">
         <CardHeader>
-          <CardTitle>AI 图片生成</CardTitle>
+          <CardTitle>AI 图片风格重绘</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* API Key Section */}
           <div className="space-y-2">
-            <Label htmlFor="api-key">API 密钥</Label>
+            <Label htmlFor="api-key">使用密钥</Label>
             <div className="flex gap-2">
               <Input
                 id="api-key"
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="输入您的API密钥"
+                placeholder="输入您的密钥"
               />
               <Button variant="secondary" asChild>
                 <a href="/pricing" target="_blank">
@@ -58,36 +68,16 @@ export default function GeneratePage() {
               </Button>
             </div>
             <p className="text-muted-foreground text-sm">
-              没有密钥？点击购买获取API访问权限
+              没有密钥？点击购买获取使用权限
             </p>
           </div>
 
           {/* Image Upload */}
           <div className="space-y-2">
             <Label>上传图片</Label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={(e) => e.target.files && setImage(e.target.files[0])}
-              accept="image/*"
-              className="hidden"
-            />
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {image ? image.name : "选择图片"}
-            </Button>
+            <ImageUpload onFileSelect={handleFileSelect} disabled={!apiKey} />
             {image && (
-              <div className="mt-2">
-                <Image
-                  src={URL.createObjectURL(image)}
-                  alt="Preview"
-                  className="max-h-48 rounded-md"
-                />
-              </div>
+              <ImagePreview file={image} onRemove={() => setImage(null)} />
             )}
           </div>
 
@@ -106,9 +96,9 @@ export default function GeneratePage() {
           {/* Generate Button */}
           <GenerateButton
             apiKey={apiKey}
-            image={image}
+            image={imageBase64}
             presetId={selectedPreset}
-            onSuccess={(imageUrl) => setResultImage(imageUrl)}
+            onSuccess={(image) => setResultImageUrl(image)}
             onError={(message) => setError(message)}
           />
 
@@ -116,14 +106,16 @@ export default function GeneratePage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           {/* Result Display */}
-          {resultImage && (
+          {resultImageUrl && (
             <div className="mt-6 space-y-4">
               <h3 className="font-medium">生成结果</h3>
               <div className="relative">
                 <Image
-                  src={resultImage}
+                  src={resultImageUrl}
                   alt="Generated result"
-                  className="w-full rounded-md border"
+                  width={600}
+                  height={400}
+                  className="w-full rounded-md border object-contain"
                 />
                 <Button
                   variant="secondary"
