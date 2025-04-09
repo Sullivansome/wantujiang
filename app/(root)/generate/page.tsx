@@ -31,6 +31,8 @@ export default function GeneratePage() {
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [elapsed, setElapsed] = useState<number>(0);
+  const [requestTimes, setRequestTimes] = useState<number[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -66,7 +68,13 @@ export default function GeneratePage() {
 
     setIsDownloading(false);
     setIsLoading(true);
+    setElapsed(0);
     setError("");
+
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 100);
 
     try {
       // Extract the base64 part from the data URL
@@ -101,10 +109,14 @@ export default function GeneratePage() {
 
       setGeneratedImages((prev) => [...prev, newImage]);
       setCurrentImageIndex(generatedImages.length); // Set to the newly added image
+      const duration = Date.now() - start;
+      setRequestTimes((prev) => [...prev, duration]);
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      clearInterval(timer);
       setIsLoading(false);
+      setElapsed(0);
     }
   };
 
@@ -189,7 +201,7 @@ export default function GeneratePage() {
                 />
 
                 {generatedImages.length > 1 && (
-                  <div className="mt-2 flex items-center justify-center gap-4">
+                  <div className="mt-8 flex items-center justify-center gap-4">
                     <Button
                       size="icon"
                       variant="outline"
@@ -211,6 +223,14 @@ export default function GeneratePage() {
                   </div>
                 )}
 
+                {generatedImages.length > 0 &&
+                  requestTimes[currentImageIndex] != null && (
+                    <div className="text-muted-foreground mt-2 text-center text-sm">
+                      该次生成耗时:{" "}
+                      {(requestTimes[currentImageIndex] / 1000).toFixed(2)}秒
+                    </div>
+                  )}
+
                 <div className="mt-4 flex justify-between">
                   <Button
                     variant="outline"
@@ -219,7 +239,7 @@ export default function GeneratePage() {
                       setCurrentImageIndex(0);
                     }}
                   >
-                    返回编辑
+                    换张图片
                   </Button>
                   <Button onClick={handleDownload} disabled={isDownloading}>
                     {isDownloading ? (
@@ -311,16 +331,16 @@ export default function GeneratePage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  生成中...
+                  生成中... ({elapsed}s)
                 </>
               ) : (
                 <>
                   {generatedImages.length > 0 ? "再次生成" : "开始生成"}
-                  {generatedImages.length > 0 && (
+                  {/* {generatedImages.length > 0 && (
                     <span className="ml-2 text-xs">
                       ({generatedImages.length})
                     </span>
-                  )}
+                  )} */}
                 </>
               )}
             </Button>

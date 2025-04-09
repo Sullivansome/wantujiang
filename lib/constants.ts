@@ -72,8 +72,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         id: "jojo",
         name: "JOJO的奇妙冒险",
         description: "JOJO的奇妙冒险风格",
-        prompt:
-          "Transform this image in the style of JoJo's Bizarre Adventure",
+        prompt: "Transform this image in the style of JoJo's Bizarre Adventure",
         preview: "/gallery/jojo/1.png",
       },
       {
@@ -82,7 +81,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         description: "鬼灭之刃动画风格",
         prompt:
           "Convert this image into the Demon Slayer (Kimetsu no Yaiba) anime style by Ufotable. Feature highly detailed character designs with distinctive eyes and hair, incorporate traditional Japanese patterns (like checkered or hemp leaf), use dynamic action lines, dramatic lighting, and replicate the blend of detailed 2D art with visually stunning CGI effects, especially for elemental powers.",
-        preview: "/gallery/demonslayer/1.png",
+        preview: "/gallery/demonslayer/1.jpg",
       },
       {
         id: "attackontitan",
@@ -90,7 +89,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         description: "进击的巨人动画风格",
         prompt:
           "Transform this image into the Attack on Titan (Shingeki no Kyojin) anime style. Use thick, bold outlines, detailed character designs with intense expressions, a generally muted and gritty color palette (earth tones, greys), dramatic shading and lighting, and convey a sense of scale and intensity. Include elements of the Survey Corps uniform or ODM gear if appropriate.",
-        preview: "/gallery/attackontitan/1.png",
+        preview: "/gallery/attackontitan/1.jpg",
       },
       {
         id: "onepiece",
@@ -171,6 +170,22 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         preview: "/gallery/oil-painting/1.png",
       },
       // Add more art style presets...
+    ],
+  },
+  {
+    id: "various",
+    name: "其他热门",
+    description: "各种风格",
+    thumbnail: "/categories/various.png",
+    presets: [
+      {
+        id: "toy",
+        name: "手办",
+        description: "手办",
+        prompt:
+          "Create image. Create a toy of the person in the photo. Let it be an action figure. Next to the figure, there should be the toy’s equipment, each in its individual blisters. 1) a book called “Tecnoforma”. 2) A 3-headed dog with a tag that says “Troika” and a bone at its feet with word “austerity” written on it. 3) a three-headed Hydra with with a tag called “Geringonça”. 4) a book titled “D. Sebastião”. Don’t repeat the equipment under any circumstance. The card holding the blister should be strong orange. Also, on top of the box, write ‘Pedro Passos Coelho’ and underneath it, ‘PSD action figure’. The figure and equipment must all be inside blisters. Visualize this in a realistic way.",
+        preview: "/gallery/toys/1/jpg",
+      },
     ],
   },
 ];

@@ -58,7 +58,7 @@ export function ImageUploader({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative flex h-64 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all ${
+      className={`relative flex h-9/10 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all ${
         isDragging
           ? "border-primary bg-primary/5"
           : "hover:border-primary/70 border-gray-300"
