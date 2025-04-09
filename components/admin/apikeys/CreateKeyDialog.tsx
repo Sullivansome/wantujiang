@@ -53,7 +53,7 @@ export function CreateKeyDialog({ onCreate, children }: CreateKeyDialogProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="credits">初始积分</Label>
+            <Label htmlFor="credits">初始次数</Label>
             <Input
               id="credits"
               type="number"

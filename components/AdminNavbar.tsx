@@ -4,6 +4,7 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "./ui/button";
+import Link from "next/link";
 
 export function AdminNavbar() {
   const router = useRouter();
@@ -17,10 +18,15 @@ export function AdminNavbar() {
   return (
     <header className="border-b">
       <div className="container flex h-16 items-center justify-between">
-        <h1 className="text-lg font-semibold">Admin Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>
-          Logout
-        </Button>
+        <h1 className="text-lg font-semibold">管理员面板</h1>
+        <div className="flex gap-x-4">
+          <Link href="/">
+            <Button variant="outline">首页</Button>
+          </Link>
+          <Button variant="outline" onClick={handleLogout}>
+            登出
+          </Button>
+        </div>
       </div>
     </header>
   );

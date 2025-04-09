@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface EditKeyDialogProps {
   keyData: ApiKey | null;
@@ -37,6 +37,13 @@ export function EditKeyDialog({
     keyData?.status || "active",
   );
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (keyData) {
+      setCredits(keyData.credits);
+      setStatus(keyData.status);
+    }
+  }, [keyData]);
 
   const handleSubmit = async () => {
     if (!keyData) return;
@@ -76,7 +83,7 @@ export function EditKeyDialog({
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="credits">积分</Label>
+            <Label htmlFor="credits">次数</Label>
             <Input
               id="credits"
               type="number"

@@ -2,10 +2,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ApiKey } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy } from "lucide-react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { ApiKeyCell } from "./ApiKeyCell";
 
 export const columns: ColumnDef<ApiKey>[] = [
   {
@@ -18,31 +18,11 @@ export const columns: ColumnDef<ApiKey>[] = [
   {
     accessorKey: "key",
     header: "API密钥",
-    cell: ({ row }) => {
-      const key = row.getValue("key") as string;
-
-      return (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm">
-            {key.slice(0, 8)}...{key.slice(-4)}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => {
-              navigator.clipboard.writeText(key);
-            }}
-          >
-            <Copy className="h-3 w-3" />
-          </Button>
-        </div>
-      );
-    },
+    cell: ({ row }) => <ApiKeyCell keyText={row.getValue("key") as string} />,
   },
   {
     accessorKey: "credits",
-    header: "积分",
+    header: "次数",
   },
   {
     accessorKey: "status",

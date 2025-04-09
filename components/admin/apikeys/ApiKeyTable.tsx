@@ -171,7 +171,7 @@ export function ApiKeyTable() {
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">列显示</Button>
+              <Button variant="outline">选择可见的列</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {table
@@ -222,16 +222,22 @@ export function ApiKeyTable() {
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  onClick={() => setEditingKey(row.original)}
-                  className="cursor-pointer"
-                >
+                <TableRow key={row.id} className="[&:hover]:bg-muted/50">
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
+                      {cell.column.id === "actions" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingKey(row.original)}
+                        >
+                          编辑
+                        </Button>
+                      ) : (
+                        flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )
                       )}
                     </TableCell>
                   ))}
