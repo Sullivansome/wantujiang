@@ -1,80 +1,144 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-// Helper to generate API key
-function generateApiKey() {
-  return `sk-${crypto.randomUUID().replace(/-/g, "")}`;
+// Helper: get current user and verify is admin
+async function authorizeAdmin() {
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  if (!authHeader) {
+    return {
+      user: null,
+      error: NextResponse.json(
+        { error: "Authorization header missing" },
+        { status: 401 },
+      ),
+    };
+  }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return {
+      user: null,
+      error: NextResponse.json({ error: "Invalid session" }, { status: 401 }),
+    };
+  }
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.is_admin) {
+    return {
+      user: null,
+      error: NextResponse.json(
+        { error: "Admin access required" },
+        { status: 403 },
+      ),
+    };
+  }
+
+  return { user, error: null };
 }
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { error } = await authorizeAdmin();
+    if (error) return error;
+
+    const { data, error: fetchError } = await supabaseAdmin
       .from("api_keys")
       .select("*")
       .order("created_at", { ascending: false });
+    if (fetchError) throw fetchError;
 
-    if (error) throw error;
-
-    return NextResponse.json(data);
-  } catch (error) {
+    return NextResponse.json(data || []);
+  } catch (e) {
+    console.error(e);
     return NextResponse.json(
-      { error: "Failed to fetch API keys" },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { order_id, credits, max_requests_per_minute, allowed_ips } =
-      await request.json();
+    const { error } = await authorizeAdmin();
+    if (error) return error;
 
-    const { data, error } = await supabase
+    const body = await req.json();
+    const { order_id, credits, key } = body;
+
+    if (!order_id || !credits || !key) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 },
+      );
+    }
+
+    const { data, error: insertError } = await supabaseAdmin
       .from("api_keys")
-      .insert([
-        {
-          order_id,
-          key: generateApiKey(),
-          credits,
-          max_requests_per_minute,
-          allowed_ips,
-          status: "active",
-        },
-      ])
-      .select();
+      .insert([{ order_id: order_id.toString(), credits, key }])
+      .select()
+      .single();
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    return NextResponse.json(data[0], { status: 201 });
-  } catch (error) {
+    return NextResponse.json(data, { status: 201 });
+  } catch (e) {
+    console.error(e);
     return NextResponse.json(
-      { error: "Failed to create API key" },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(req: Request) {
   try {
-    const { id, updates } = await request.json();
+    const { error } = await authorizeAdmin();
+    if (error) return error;
 
-    const { data, error } = await supabase
+    const body = await req.json();
+    const { id, updates } = body;
+    if (!id || !updates) {
+      return NextResponse.json(
+        { error: "Missing id or updates" },
+        { status: 400 },
+      );
+    }
+
+    const { data, error: updateError } = await supabaseAdmin
       .from("api_keys")
       .update(updates)
       .eq("id", id)
-      .select();
+      .select()
+      .single();
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
-    return NextResponse.json(data[0]);
-  } catch (error) {
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error(e);
     return NextResponse.json(
-      { error: "Failed to update API key" },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

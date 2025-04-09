@@ -5,14 +5,11 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { generateApiKey } from "@/lib/api-keys";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export function CreateKeyForm() {
-  const [formData, setFormData] = useState({
-    orderId: "",
-    credits: 100,
-    maxRequests: 10,
-    allowedIps: "",
-  });
+  const [orderId, setOrderId] = useState<number | "">("");
+  const [credits, setCredits] = useState<number>(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -24,18 +21,23 @@ export function CreateKeyForm() {
     setSuccess("");
 
     try {
+      const apiKey = generateApiKey();
+
+      const supabase = createClientComponentClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const response = await fetch("/api/admin/keys", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
-          order_id: formData.orderId,
-          credits: formData.credits,
-          max_requests_per_minute: formData.maxRequests,
-          allowed_ips: formData.allowedIps
-            ? formData.allowedIps.split(",").map((ip) => ip.trim())
-            : null,
+          order_id: orderId.toString(), // sent as string to match table
+          credits,
+          key: apiKey,
         }),
       });
 
@@ -44,12 +46,8 @@ export function CreateKeyForm() {
       }
 
       setSuccess("API key created successfully!");
-      setFormData({
-        orderId: "",
-        credits: 100,
-        maxRequests: 10,
-        allowedIps: "",
-      });
+      setOrderId("");
+      setCredits(100);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create API key");
     } finally {
@@ -63,12 +61,14 @@ export function CreateKeyForm() {
         <Label htmlFor="orderId">支付宝订单号</Label>
         <Input
           id="orderId"
-          value={formData.orderId}
+          type="number"
+          value={orderId}
           onChange={(e) =>
-            setFormData({ ...formData, orderId: e.target.value })
+            setOrderId(e.target.value === "" ? "" : Number(e.target.value))
           }
           placeholder="输入支付宝订单号"
           required
+          min="0"
         />
       </div>
 
@@ -77,27 +77,8 @@ export function CreateKeyForm() {
         <Input
           id="credits"
           type="number"
-          value={formData.credits}
-          onChange={(e) =>
-            setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })
-          }
-          min="1"
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="maxRequests">每分钟最大请求数</Label>
-        <Input
-          id="maxRequests"
-          type="number"
-          value={formData.maxRequests}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              maxRequests: parseInt(e.target.value) || 1,
-            })
-          }
+          value={credits}
+          onChange={(e) => setCredits(parseInt(e.target.value) || 0)}
           min="1"
           required
         />
