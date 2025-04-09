@@ -69,7 +69,7 @@ export function ImageComparisonSlider({
         <img
           src={generated}
           alt="Generated"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover select-none"
         />
       </div>
 
@@ -83,7 +83,7 @@ export function ImageComparisonSlider({
         <img
           src={original}
           alt="Original"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover select-none"
         />
       </div>
 

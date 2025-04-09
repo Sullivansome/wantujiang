@@ -1,4 +1,4 @@
-import { STYLE_PRESETS } from "@/lib/constants";
+import { STYLE_CATEGORIES, STYLE_PRESETS } from "@/lib/constants";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -53,9 +53,9 @@ export async function POST(req: Request) {
         ? "png"
         : "jpeg";
 
-    const prompt = STYLE_PRESETS.find(
-      (preset) => preset.id === presetId,
-    )?.prompt;
+    const prompt = STYLE_CATEGORIES.flatMap(
+      (category) => category.presets,
+    ).find((p) => p.id === presetId)?.prompt;
 
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -145,8 +145,8 @@ function formatTuZiResponse(response: any): FormattedResponse {
 
   // Parse the raw content
   const content = response.choices?.[0]?.message?.content;
-  // const promptMatch = content.match(/```(json\n)?({[^]+?})```/);
-  // const promptData = promptMatch ? JSON.parse(promptMatch[2]) : null;
+  const promptMatch = content.match(/```(json\n)?({[^]+?})```/);
+  const promptData = promptMatch ? JSON.parse(promptMatch[2]) : null;
 
   // Check for moderation failure
   const isRejected = content.includes('is_output_rejection":true');
@@ -173,7 +173,7 @@ function formatTuZiResponse(response: any): FormattedResponse {
         suggestion: failureMatch?.[3],
         taskId: taskIdMatch?.[1],
       },
-      // prompt: promptData,
+      prompt: promptData,
     };
   }
   return {
@@ -183,7 +183,7 @@ function formatTuZiResponse(response: any): FormattedResponse {
       : progress.length
         ? "generating"
         : "queued",
-    // prompt: promptData,
+    prompt: promptData,
     generation: {
       id: genIdMatch?.[1],
       imageUrl: imageUrlMatch?.[1],

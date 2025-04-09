@@ -319,7 +319,7 @@ export default function GeneratePage() {
               className="w-full"
               size="lg"
               onClick={handleGenerate}
-              disabled={isLoading || !imageBase64 || !selectedPreset}
+              disabled={isLoading || !apiKey || !imageBase64 || !selectedPreset}
             >
               {isLoading ? (
                 <>
