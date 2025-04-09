@@ -1,4 +1,4 @@
-import { STYLE_CATEGORIES, STYLE_PRESETS } from "@/lib/constants";
+import { STYLE_CATEGORIES } from "@/lib/constants";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 

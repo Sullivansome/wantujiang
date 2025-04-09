@@ -27,7 +27,6 @@ interface GeneratedImage {
 
 export default function GeneratePage() {
   const [apiKey, setApiKey] = useState("");
-  const [image, setImage] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
@@ -37,7 +36,6 @@ export default function GeneratePage() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleFileSelect = (file: File) => {
-    setImage(file);
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64String = event.target?.result as string;
@@ -242,7 +240,6 @@ export default function GeneratePage() {
               <ImagePreview
                 src={imageBase64}
                 onReset={() => {
-                  setImage(null);
                   setImageBase64(null);
                 }}
               />
