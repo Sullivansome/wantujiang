@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { generateApiKey } from "@/lib/api-keys";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -84,14 +85,16 @@ export async function POST(req: Request) {
     if (error) return error;
 
     const body = await req.json();
-    const { order_id, credits, key } = body;
+    const { order_id, credits } = body;
 
-    if (!order_id || !credits || !key) {
+    if (!order_id || !credits ) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
       );
     }
+
+    const key = generateApiKey()
 
     const { data, error: insertError } = await supabaseAdmin
       .from("api_keys")
