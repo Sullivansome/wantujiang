@@ -73,7 +73,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         name: "JOJO的奇妙冒险",
         description: "JOJO的奇妙冒险风格",
         prompt:
-          "Reimagine this image in the style of JoJo's Bizarre Adventure. Use dramatic, angular character designs with detailed features, bold outlines, dynamic and expressive 'JoJo poses', vibrant and often unconventional color palettes, and incorporate stylized onomatopoeia (sound effects) visually.",
+          "Transform this image in the style of JoJo's Bizarre Adventure",
         preview: "/gallery/jojo/1.png",
       },
       {
@@ -145,7 +145,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         description: "辛普森一家动画风格",
         prompt:
           "Transform this photo into Simpsons style art with yellow skin big eyes and that iconic Springfield look. Make it look like an official character from the show",
-        preview: "/gallery/simpsons/1.png",
+        preview: "/gallery/simpsons/1.jpg",
       },
       // Add more western animation presets...
     ],

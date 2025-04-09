@@ -15,6 +15,7 @@ import {
 import { StylePresets } from "@/components/StylePresets";
 import { ImageUploader } from "@/components/ImageUploader";
 import { ImageComparisonSlider } from "@/components/ImageComparisonSlider";
+import { ImagePreview } from "@/components/ImagePreview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface GeneratedImage {
@@ -166,7 +167,7 @@ export default function GeneratePage() {
   const currentImage = showResults ? generatedImages[currentImageIndex] : null;
 
   return (
-    <div className="mx-auto min-h-screen w-full py-8">
+    <div className="mx-auto min-h-screen w-full py-8 select-none">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold">AI 图片风格重绘</h1>
         <p className="text-muted-foreground mt-2">
@@ -238,24 +239,13 @@ export default function GeneratePage() {
                 </div>
               </div>
             ) : (
-              <div className="h-[600px] w-full overflow-hidden rounded-lg border">
-                <img
-                  src={imageBase64}
-                  alt="Preview"
-                  className="h-full w-full object-contain"
-                />
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setImage(null);
-                      setImageBase64(null);
-                    }}
-                  >
-                    重新选择图片
-                  </Button>
-                </div>
-              </div>
+              <ImagePreview
+                src={imageBase64}
+                onReset={() => {
+                  setImage(null);
+                  setImageBase64(null);
+                }}
+              />
             )}
 
             {error && (
@@ -349,8 +339,8 @@ export default function GeneratePage() {
             <div className="text-muted-foreground mt-4 text-sm">
               <p>提示:</p>
               <ul className="list-inside list-disc">
-                <li>上传高质量图片可获得更好的效果</li>
-                <li>不同风格可以多次尝试</li>
+                <li>图片大小不超过10MB</li>
+                <li>有两次免费重绘机会</li>
                 <li>可以比较多次生成的效果</li>
               </ul>
             </div>
