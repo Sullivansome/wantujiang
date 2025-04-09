@@ -98,7 +98,15 @@ export async function POST(req: Request) {
     console.log(response);
 
     const formatted = formatTuZiResponse(response);
+
     console.log("Formatted Response:", formatted);
+
+    if (!imageUrl) {
+      return NextResponse.json(
+        { success: false, error: "Image generation failed" },
+        { status: 500 },
+      );
+    }
 
     // return NextResponse.json(fullResponse);
     return NextResponse.json({

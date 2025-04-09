@@ -1,35 +1,31 @@
-export const DEFAULT_MODEL = "gpt-4o-all";
+export type StylePreset = {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  preview: string;
+};
 
-export const STYLE_PRESETS = [
-  // {
-  //   id: "cartoon",
-  //   name: "卡通风格",
-  //   description: "皮克斯风格的3D卡通效果",
-  //   prompt:
-  //     "Convert this image into a Pixar-style 3D cartoon with vibrant colors and soft lighting",
-  //   preview: "",
-  // },
-  // {
-  //   id: "watercolor",
-  //   name: "水彩画风格",
-  //   description: "传统水彩画效果",
-  //   prompt:
-  //     "Transform this image into a beautiful watercolor painting with visible brush strokes",
-  //   preview: "",
-  // },
-  // {
-  //   id: "cyberpunk",
-  //   name: "赛博朋克风格",
-  //   description: "霓虹灯未来都市风格",
-  //   prompt:
-  //     "Give this image a neon-lit cyberpunk aesthetic with futuristic elements",
-  //   preview: "",
-  // },
+export type StyleCategory = {
+  id: string;
+  name: string;
+  description: string;
+  thumbnail: string;
+  presets: StylePreset[];
+};
+
+export const STYLE_CATEGORIES: StyleCategory[] = [
   {
-    id: "MakotoShinkai",
-    name: "新海诚",
-    description: "新海诚动画电影风格",
-    prompt: `生成3:2图片，将我的照片转换为下面这种动画风格：
+    id: "anime",
+    name: "动漫风格",
+    description: "各种日本动漫风格",
+    thumbnail: "/categories/anime.png",
+    presets: [
+      {
+        id: "MakotoShinkai",
+        name: "新海诚",
+        description: "新海诚动画电影风格",
+        prompt: `生成3:2图片，将我的照片转换为下面这种动画风格：
 
       1. 极致写实的背景与环境细节：
 
@@ -62,21 +58,146 @@ export const STYLE_PRESETS = [
 
       人物的简洁化： 相较于背景的极致精细，人物造型遵循典型的日式动画风格，线条相对简洁，面部特征（尤其是眼睛）被适度夸张以传递情感，但与环境融合自然，并未产生强烈的割裂感。这种对比反而更能凸显环境的宏大与人物情感的细腻。
     `,
-    preview: "/gallery/makotoshinkai/1.png",
+        preview: "/gallery/makotoshinkai/1.png",
+      },
+      {
+        id: "ghibli",
+        name: "宫崎骏风格",
+        description: "宫崎骏风格",
+        prompt:
+          "Turn this image into a Studio Ghibli-style animated image. Use the soft color palette, whimsical background, and facial features inspired by Ghibli characters.",
+        preview: "/gallery/ghibli/1.png",
+      },
+      {
+        id: "jojo",
+        name: "JOJO的奇妙冒险",
+        description: "JOJO的奇妙冒险风格",
+        prompt:
+          "Reimagine this image in the style of JoJo's Bizarre Adventure. Use dramatic, angular character designs with detailed features, bold outlines, dynamic and expressive 'JoJo poses', vibrant and often unconventional color palettes, and incorporate stylized onomatopoeia (sound effects) visually.",
+        preview: "/gallery/jojo/1.png",
+      },
+      {
+        id: "demonslayer",
+        name: "鬼灭之刃",
+        description: "鬼灭之刃动画风格",
+        prompt:
+          "Convert this image into the Demon Slayer (Kimetsu no Yaiba) anime style by Ufotable. Feature highly detailed character designs with distinctive eyes and hair, incorporate traditional Japanese patterns (like checkered or hemp leaf), use dynamic action lines, dramatic lighting, and replicate the blend of detailed 2D art with visually stunning CGI effects, especially for elemental powers.",
+        preview: "/gallery/demonslayer/1.png",
+      },
+      {
+        id: "attackontitan",
+        name: "进击的巨人",
+        description: "进击的巨人动画风格",
+        prompt:
+          "Transform this image into the Attack on Titan (Shingeki no Kyojin) anime style. Use thick, bold outlines, detailed character designs with intense expressions, a generally muted and gritty color palette (earth tones, greys), dramatic shading and lighting, and convey a sense of scale and intensity. Include elements of the Survey Corps uniform or ODM gear if appropriate.",
+        preview: "/gallery/attackontitan/1.png",
+      },
+      {
+        id: "onepiece",
+        name: "海贼王",
+        description: "海贼王动画风格",
+        prompt:
+          "Redraw this image in the One Piece anime style. Emphasize Eiichiro Oda's distinctive character proportions (often exaggerated or cartoony), bold outlines, vibrant colors suitable for a grand adventure, expressive and often comical facial features, and a dynamic, energetic composition.",
+        preview: "/gallery/onepiece/1.png",
+      },
+      {
+        id: "spyxfamily",
+        name: "间谍过家家",
+        description: "间谍过家家动画风格",
+        prompt:
+          "Adapt this image into the Spy x Family anime style. Use clean lines, elegant and distinct character designs (think Loid's sharpness, Yor's grace, Anya's expressiveness), a bright and clear color palette with influences from mid-century aesthetics, and focus on highly expressive facial reactions, especially for comedic effect.",
+        preview: "/gallery/spyxfamily/1.png",
+      },
+      {
+        id: "dragonball",
+        name: "龙珠",
+        description: "龙珠Z/超动画风格",
+        prompt:
+          "Transform this image into the Dragon Ball Z/Super style by Akira Toriyama. Feature characters with spiky hair, defined musculature, distinct angular facial features, simple, bold outlines, bright colors, and dynamic action poses. Include energy effects (Ki auras, blasts) if relevant.",
+        preview: "/gallery/dragonball/1.png",
+      },
+      // Add more anime presets...
+    ],
   },
   {
-    id: "ghibli",
-    name: "宫崎骏风格",
-    description: "宫崎骏风格",
-    prompt:
-      "Turn this image into a Studio Ghibli-style animated image. Use the soft color palette, whimsical background, and facial features inspired by Ghibli characters.",
-    preview: "/gallery/ghibli/1.png",
+    id: "western-animation",
+    name: "欧美动画",
+    description: "西方动画风格",
+    thumbnail: "/categories/western.png",
+    presets: [
+      {
+        id: "rickandmorty",
+        name: "瑞克和莫蒂",
+        description: "瑞克和莫蒂风格",
+        prompt: "Turn this image into a rick and morty style image",
+        preview: "/gallery/rickandmorty/1.png",
+      },
+      {
+        id: "hazbinhotel",
+        name: "地狱旅馆",
+        description: "地狱旅馆风格",
+        prompt: "Turn this image into a hazbin hotel style image",
+        preview: "/gallery/hazbinhotel/1.png",
+      },
+      {
+        id: "simpsons",
+        name: "辛普森一家",
+        description: "辛普森一家动画风格",
+        prompt:
+          "Transform this photo into Simpsons style art with yellow skin big eyes and that iconic Springfield look. Make it look like an official character from the show",
+        preview: "/gallery/simpsons/1.png",
+      },
+      // Add more western animation presets...
+    ],
   },
   {
-    id: "rickandmorty",
-    name: "瑞克和莫蒂",
-    description: "瑞克和莫蒂风格",
-    prompt: "Turn this image into a rick and morty style image",
-    preview: "/gallery/rickandmorty/1.png",
+    id: "art-styles",
+    name: "艺术风格",
+    description: "各种绘画艺术风格",
+    thumbnail: "/categories/art.jpg",
+    presets: [
+      {
+        id: "watercolor",
+        name: "水彩画",
+        description: "传统水彩画效果",
+        prompt: "Your watercolor prompt here...",
+        preview: "/gallery/watercolor/1.png",
+      },
+      {
+        id: "oil-painting",
+        name: "油画",
+        description: "古典油画效果",
+        prompt: "Your oil painting prompt here...",
+        preview: "/gallery/oil-painting/1.png",
+      },
+      // Add more art style presets...
+    ],
   },
+];
+
+export const STYLE_PRESETS = [
+  // {
+  //   id: "cartoon",
+  //   name: "卡通风格",
+  //   description: "皮克斯风格的3D卡通效果",
+  //   prompt:
+  //     "Convert this image into a Pixar-style 3D cartoon with vibrant colors and soft lighting",
+  //   preview: "",
+  // },
+  // {
+  //   id: "watercolor",
+  //   name: "水彩画风格",
+  //   description: "传统水彩画效果",
+  //   prompt:
+  //     "Transform this image into a beautiful watercolor painting with visible brush strokes",
+  //   preview: "",
+  // },
+  // {
+  //   id: "cyberpunk",
+  //   name: "赛博朋克风格",
+  //   description: "霓虹灯未来都市风格",
+  //   prompt:
+  //     "Give this image a neon-lit cyberpunk aesthetic with futuristic elements",
+  //   preview: "",
+  // },
 ] as const;
