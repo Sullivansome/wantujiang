@@ -128,6 +128,7 @@ export default function GeneratePage() {
         } catch (parseError) {
           // If parsing fails, use the status text or default message
           errorMsg = response.statusText || errorMsg;
+          console.error(parseError);
         }
         throw new Error(errorMsg); // Throw the detailed error
       }

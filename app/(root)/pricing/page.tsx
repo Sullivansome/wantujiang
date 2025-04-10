@@ -101,7 +101,16 @@ export default function PricingPage() {
 
       // Append all form data
       Object.entries(data).forEach(([key, value]) => {
-        if (value) formData.append(key, value);
+        // Check if the value exists and is not undefined/null
+        if (value !== undefined && value !== null) {
+          // Convert boolean to string before appending
+          if (typeof value === "boolean") {
+            formData.append(key, String(value));
+          } else {
+            // Append strings directly (ensure empty strings are handled if needed)
+            formData.append(key, value);
+          }
+        }
       });
 
       // Append the image file if exists

@@ -25,9 +25,6 @@ export function StylePresets({
 }: StylePresetsProps) {
   const [selectedCategory, setSelectedCategory] =
     useState<StyleCategory | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(
-    currentPreset,
-  );
 
   return (
     <div className="space-y-6">
@@ -110,7 +107,6 @@ export function StylePresets({
                     key={preset.id}
                     onClick={() => {
                       if (!isPresetDisabled) {
-                        setSelectedPreset(preset.id);
                         onSelect(preset.id);
                         setSelectedCategory(null);
                       }

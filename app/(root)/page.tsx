@@ -63,28 +63,28 @@ const STYLE_COMPARISONS = [
 ];
 
 // Testimonials
-const TESTIMONIALS = [
-  {
-    // name: "小明",
-    // avatar: "/avatars/user1.png",
-    content:
-      "一键将我的旅行照片变成吉卜力风格画作，太神奇了！朋友们都在问我用了什么魔法。",
-    // role: "摄影爱好者",
-  },
-  {
-    // name: "小红",
-    // avatar: "/avatars/user2.png",
-    content:
-      "用这个给我女儿做了一套动漫风格的表情包，她超级喜欢！操作简单又快速。",
-    // role: "家长",
-  },
-  {
-    // name: "李华",
-    // avatar: "/avatars/user3.png",
-    content: "我用它制作了一份特别的生日礼物，给了外国朋友一个惊喜",
-    // role: "UI设计师",
-  },
-];
+// const TESTIMONIALS = [
+//   {
+//     // name: "小明",
+//     // avatar: "/avatars/user1.png",
+//     content:
+//       "一键将我的旅行照片变成吉卜力风格画作，太神奇了！朋友们都在问我用了什么魔法。",
+//     // role: "摄影爱好者",
+//   },
+//   {
+//     // name: "小红",
+//     // avatar: "/avatars/user2.png",
+//     content:
+//       "用这个给我女儿做了一套动漫风格的表情包，她超级喜欢！操作简单又快速。",
+//     // role: "家长",
+//   },
+//   {
+//     // name: "李华",
+//     // avatar: "/avatars/user3.png",
+//     content: "我用它制作了一份特别的生日礼物，给了外国朋友一个惊喜",
+//     // role: "UI设计师",
+//   },
+// ];
 
 export default function Home() {
   const [activeComparisonTab, setActiveComparisonTab] = useState("吉卜力风格");
