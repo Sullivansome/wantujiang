@@ -1,4 +1,6 @@
 import { STYLE_CATEGORIES } from "@/lib/constants";
+import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -38,7 +40,7 @@ interface FormattedResponse {
 
 export async function POST(req: Request) {
   console.log("Received request to generate image");
-  const { apiKey, presetId, image } = await req.json();
+  const { apiKey, presetId, image, isRetry = false } = await req.json();
   try {
     if (!apiKey || !presetId || !image) {
       return NextResponse.json(
@@ -47,6 +49,72 @@ export async function POST(req: Request) {
       );
     }
 
+    let remainingCredits;
+
+    // Validate API key and check credits (only if not a retry)
+    if (!isRetry) {
+      const {
+        data: keyData,
+        error: keyError,
+        count,
+      } = await supabaseAdmin
+        .from("api_keys")
+        .select("credits")
+        .eq("key", apiKey)
+        .eq("status", "active")
+        .single();
+
+      console.log("Query results:", {
+        keyData,
+        keyError,
+        count,
+      });
+      if (keyError) {
+        console.error("Supabase error:", keyError);
+        return NextResponse.json(
+          {
+            error: "Database error",
+            details: keyError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      if (!keyData) {
+        return NextResponse.json(
+          {
+            error: "Invalid API key or inactive key",
+            details: `No active key found matching: ${apiKey}`,
+          },
+          { status: 401 },
+        );
+      }
+
+      if (keyData.credits < 1) {
+        return NextResponse.json(
+          { error: "Insufficient credits" },
+          { status: 402 },
+        );
+      }
+
+      // Deduct credits
+      const { error: updateError } = await supabaseAdmin
+        .from("api_keys")
+        .update({ credits: keyData.credits - 1 })
+        .eq("key", apiKey);
+
+      if (updateError) {
+        return NextResponse.json(
+          { error: "Failed to deduct credits" },
+          { status: 500 },
+        );
+      }
+
+      // Return remaining credits
+      remainingCredits = keyData.credits - 1;
+    }
+
+    // Continue with image generation
     const imageType = image.startsWith("/")
       ? "jpeg"
       : image.startsWith("iVBOR")
@@ -86,20 +154,20 @@ export async function POST(req: Request) {
     const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
     const imageUrl = imageUrlMatch?.[1];
 
-    console.log("\n=== TOKEN USAGE ===");
-    console.log(`Prompt Tokens: ${response.usage?.prompt_tokens}`);
-    console.log(`Completion Tokens: ${response.usage?.completion_tokens}`);
-    console.log(`Total Tokens: ${response.usage?.total_tokens}\n`);
+    // console.log("\n=== TOKEN USAGE ===");
+    // console.log(`Prompt Tokens: ${response.usage?.prompt_tokens}`);
+    // console.log(`Completion Tokens: ${response.usage?.completion_tokens}`);
+    // console.log(`Total Tokens: ${response.usage?.total_tokens}\n`);
 
     console.log("\n=== IMAGE URL ===");
     console.log(imageUrl || "No image URL found in response");
 
-    console.log("\n=== FULL RESPONSE ===");
-    console.log(response);
+    // console.log("\n=== FULL RESPONSE ===");
+    // console.log(response);
 
-    const formatted = formatTuZiResponse(response);
+    // const formatted = formatTuZiResponse(response);
 
-    console.log("Formatted Response:", formatted);
+    // console.log("Formatted Response:", formatted);
 
     if (!imageUrl) {
       return NextResponse.json(
@@ -115,6 +183,8 @@ export async function POST(req: Request) {
       imageUrl,
       // rawContent: content,
       // fullResponse: response,
+      remainingCredits,
+      isRetry,
     });
   } catch (err: any) {
     console.error("Generation failed:", err);

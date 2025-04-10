@@ -36,12 +36,15 @@ export default function GeneratePage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState<number>(0);
 
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64String = event.target?.result as string;
       setImageBase64(base64String);
+      setRetryCount(0); // Reset retry count for new image
     };
     reader.readAsDataURL(file);
     setError("");
@@ -79,6 +82,7 @@ export default function GeneratePage() {
     try {
       // Extract the base64 part from the data URL
       const base64Data = imageBase64.split(",")[1];
+      const isRetry = retryCount > 0 && retryCount < 3; // Allow 2 retries (total 3 attempts)
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -89,6 +93,7 @@ export default function GeneratePage() {
           apiKey,
           image: base64Data,
           presetId: selectedPreset,
+          isRetry,
         }),
       });
 
@@ -111,6 +116,15 @@ export default function GeneratePage() {
       setCurrentImageIndex(generatedImages.length); // Set to the newly added image
       const duration = Date.now() - start;
       setRequestTimes((prev) => [...prev, duration]);
+
+      if (result.remainingCredits !== undefined) {
+        setRemainingCredits(result.remainingCredits);
+      }
+      if (!result.isRetry) {
+        setRetryCount(0); // Reset if it was a new generation
+      } else {
+        setRetryCount((prev) => prev + 1);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -307,6 +321,15 @@ export default function GeneratePage() {
                 </AlertDescription>
               </Alert>
             )}
+
+            {remainingCredits !== null && (
+              <div className="mt-2 text-center">
+                <p className="text-sm">
+                  剩余次数:{" "}
+                  <span className="font-medium">{remainingCredits}</span>
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Style Selection */}
@@ -326,7 +349,7 @@ export default function GeneratePage() {
               className="w-full"
               size="lg"
               onClick={handleGenerate}
-              disabled={isLoading || !apiKey || !imageBase64 || !selectedPreset}
+              disabled={isLoading || !apiKey || !imageBase64 || !selectedPreset || retryCount >= 2}
             >
               {isLoading ? (
                 <>
@@ -351,6 +374,12 @@ export default function GeneratePage() {
                   已生成 {generatedImages.length} 次
                 </p>
               </div>
+            )}
+
+            {retryCount >= 2 && (
+              <p className="text-muted-foreground mt-2 text-sm">
+                重试次数已用完，上传新图片可重新开始
+              </p>
             )}
 
             <div className="text-muted-foreground mt-4 text-sm">
