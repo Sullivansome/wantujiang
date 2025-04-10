@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 
 // Define validation schema
 const formSchema = z
@@ -25,7 +26,7 @@ const formSchema = z
     phone: z.string().optional().or(z.literal("")),
     paymentMethod: z.enum(["wechat", "alipay"]),
     orderId: z.string().optional().or(z.literal("")),
-    paymentProof: z.boolean(),
+    hasPaymentProof: z.boolean().optional(),
   })
   .refine(
     (data) => {
@@ -40,7 +41,7 @@ const formSchema = z
   .refine(
     (data) => {
       // Either screenshot or order ID must be provided
-      return data.orderId || data.paymentProof;
+      return data.orderId || data.hasPaymentProof;
     },
     {
       message: "请提供支付凭证或订单号",
@@ -54,6 +55,7 @@ export default function PricingPage() {
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const paymentProofRef = useRef<HTMLInputElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -61,6 +63,7 @@ export default function PricingPage() {
     formState: { errors },
     watch,
     reset,
+    setValue,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -69,7 +72,7 @@ export default function PricingPage() {
       phone: "",
       paymentMethod: "wechat",
       orderId: "",
-      paymentProof: false,
+      hasPaymentProof: false,
     },
   });
 
@@ -83,11 +86,16 @@ export default function PricingPage() {
         setPreviewImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+      setValue("hasPaymentProof", true, { shouldValidate: true });
+    } else {
+      setPreviewImage(null);
+      setValue("hasPaymentProof", false, { shouldValidate: true });
     }
   };
 
   // Update your onSubmit function
   const onSubmit = async (data: FormData) => {
+    setIsSubmitting(true);
     try {
       const formData = new FormData();
 
@@ -119,8 +127,10 @@ export default function PricingPage() {
       if (paymentProofRef.current) {
         paymentProofRef.current.value = "";
       }
-    } catch (error) {
+    } catch {
       toast.error("提交失败，请稍后再试");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -174,7 +184,7 @@ export default function PricingPage() {
 
         {/* Customer Information Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <h2 className="text-xl font-semibold">填写联系信息</h2>
+          <h2 className="text-xl font-semibold">填写联系信息（任填一项）</h2>
 
           <div className="space-y-2">
             <Label htmlFor="email">电子邮箱</Label>
@@ -204,30 +214,38 @@ export default function PricingPage() {
               <Label>上传支付截图</Label>
               <Input
                 type="file"
+                id="paymentProofInput" 
                 accept="image/*"
-                ref={paymentProofRef}
                 onChange={handleImageUpload}
                 className="cursor-pointer"
+                ref={(e) => {
+                  
+                  paymentProofRef.current = e;
+                }}
               />
               {previewImage && (
-                <div className="mt-2">
-                  <Image
-                    src={previewImage}
-                    alt="Payment proof preview"
-                    width={200}
-                    height={200}
-                    className="rounded border"
-                  />
+                <div className="mt-2 flex flex-col items-center">
+                  <div className="relative h-48 w-full overflow-hidden rounded-lg border">
+                    <Image
+                      src={previewImage}
+                      alt="Payment proof preview"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="mt-2 text-red-500"
+                    className="mt-2 text-red-500 hover:text-red-600"
                     onClick={() => {
                       setPreviewImage(null);
                       if (paymentProofRef.current) {
                         paymentProofRef.current.value = "";
                       }
+                      setValue("hasPaymentProof", false, {
+                        shouldValidate: true,
+                      });
                     }}
                   >
                     删除图片
@@ -241,14 +259,6 @@ export default function PricingPage() {
                   id="orderId"
                   {...register("orderId")}
                   placeholder="选填"
-                  onChange={(e) => {
-                    if (e.target.value && previewImage) {
-                      setPreviewImage(null);
-                      if (paymentProofRef.current) {
-                        paymentProofRef.current.value = "";
-                      }
-                    }
-                  }}
                 />
               </div>
             </div>
@@ -257,14 +267,19 @@ export default function PricingPage() {
             )}
           </div>
 
-          {(errors as any).root && (
-            <p className="text-sm text-red-500">
-              {(errors as any).root.message}
-            </p>
+          {errors.root && (
+            <p className="text-sm text-red-500">{errors.root.message}</p>
           )}
 
-          <Button type="submit" className="mt-4 w-full">
-            提交支付信息
+          <Button type="submit" className="mt-4 w-full" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                提交中...
+              </>
+            ) : (
+              "提交支付信息"
+            )}
           </Button>
         </form>
 
