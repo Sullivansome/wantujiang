@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { ChatCompletionContentPart } from "openai/resources/chat/completions";
 
-export const runtime = "edge";
+// export const runtime = "edge";
 
 // interface FormattedResponse {
 //   id: string;
