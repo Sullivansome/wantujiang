@@ -1,5 +1,4 @@
 import { STYLE_CATEGORIES } from "@/lib/constants";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -38,6 +37,7 @@ interface FormattedResponse {
   createdAt: Date;
 }
 
+// Modified /api/generate route
 export async function POST(req: Request) {
   console.log("Received request to generate image");
   const { apiKey, presetId, image, isRetry = false } = await req.json();
@@ -50,25 +50,18 @@ export async function POST(req: Request) {
     }
 
     let remainingCredits;
+    let isNewCycle = false;
 
     // Validate API key and check credits (only if not a retry)
     if (!isRetry) {
-      const {
-        data: keyData,
-        error: keyError,
-        count,
-      } = await supabaseAdmin
+      const { data: keyData, error: keyError } = await supabaseAdmin
         .from("api_keys")
         .select("credits")
         .eq("key", apiKey)
         .eq("status", "active")
         .single();
 
-      console.log("Query results:", {
-        keyData,
-        keyError,
-        count,
-      });
+      console.log("Query results:", { keyData, keyError });
       if (keyError) {
         console.error("Supabase error:", keyError);
         return NextResponse.json(
@@ -97,7 +90,8 @@ export async function POST(req: Request) {
         );
       }
 
-      // Deduct credits
+      // Deduct credits - Don't deduct on retries
+      isNewCycle = true;
       const { error: updateError } = await supabaseAdmin
         .from("api_keys")
         .update({ credits: keyData.credits - 1 })
@@ -130,62 +124,75 @@ export async function POST(req: Request) {
       baseURL: process.env.OPENAI_API_BASE_URL,
     });
 
-    // This error occurs the proxy do not follow openai api standard
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL as string,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:image/${imageType};base64,${image}` },
-            },
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        },
-      ],
-    });
+    try {
+      // This error occurs the proxy do not follow openai api standard
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL as string,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:image/${imageType};base64,${image}` },
+              },
+              {
+                type: "text",
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      });
 
-    const content = response.choices[0]?.message?.content || "";
-    const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
-    const imageUrl = imageUrlMatch?.[1];
+      const content = response.choices[0]?.message?.content || "";
+      const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
+      const imageUrl = imageUrlMatch?.[1];
 
-    // console.log("\n=== TOKEN USAGE ===");
-    // console.log(`Prompt Tokens: ${response.usage?.prompt_tokens}`);
-    // console.log(`Completion Tokens: ${response.usage?.completion_tokens}`);
-    // console.log(`Total Tokens: ${response.usage?.total_tokens}\n`);
+      console.log("\n=== IMAGE URL ===");
+      console.log(imageUrl || "No image URL found in response");
 
-    console.log("\n=== IMAGE URL ===");
-    console.log(imageUrl || "No image URL found in response");
+      if (!imageUrl) {
+        // If API request failed as there's no image URL, revert credit deduction
+        if (isNewCycle) {
+          await supabaseAdmin
+            .from("api_keys")
+            .update({ credits: remainingCredits! + 1 })
+            .eq("key", apiKey);
+          remainingCredits = remainingCredits! + 1;
+        }
 
-    // console.log("\n=== FULL RESPONSE ===");
-    // console.log(response);
+        return NextResponse.json(
+          { success: false, error: "Image generation failed" },
+          { status: 500 },
+        );
+      }
 
-    // const formatted = formatTuZiResponse(response);
+      return NextResponse.json({
+        success: true,
+        tokens: response.usage,
+        imageUrl,
+        remainingCredits,
+        isRetry,
+        isNewCycle,
+      });
+    } catch (apiError: any) {
+      console.error("OpenAI API error:", apiError);
 
-    // console.log("Formatted Response:", formatted);
+      // If API request failed, revert credit deduction
+      if (isNewCycle) {
+        await supabaseAdmin
+          .from("api_keys")
+          .update({ credits: remainingCredits! + 1 })
+          .eq("key", apiKey);
+        remainingCredits = remainingCredits! + 1;
+      }
 
-    if (!imageUrl) {
       return NextResponse.json(
-        { success: false, error: "Image generation failed" },
+        { success: false, error: apiError.message || "API request failed" },
         { status: 500 },
       );
     }
-
-    // return NextResponse.json(fullResponse);
-    return NextResponse.json({
-      success: true,
-      tokens: response.usage,
-      imageUrl,
-      // rawContent: content,
-      // fullResponse: response,
-      remainingCredits,
-      isRetry,
-    });
   } catch (err: any) {
     console.error("Generation failed:", err);
     return NextResponse.json(

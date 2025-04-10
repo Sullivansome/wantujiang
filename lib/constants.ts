@@ -225,6 +225,14 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
           "Create image. Create a toy of the person in the photo. Let it be an action figure. Next to the figure, there should be the toy’s equipment, each in its individual blisters. 1) a book called “Tecnoforma”. 2) A 3-headed dog with a tag that says “Troika” and a bone at its feet with word “austerity” written on it. 3) a three-headed Hydra with with a tag called “Geringonça”. 4) a book titled “D. Sebastião”. Don’t repeat the equipment under any circumstance. The card holding the blister should be strong orange. Also, on top of the box, write ‘Pedro Passos Coelho’ and underneath it, ‘PSD action figure’. The figure and equipment must all be inside blisters. Visualize this in a realistic way.",
         preview: "/gallery/toys/1/jpg",
       },
+      {
+        id: "meme",
+        name: "个人表情包",
+        description: "上传您的自拍，制作六张专属表情包",
+        prompt:
+          "请创作一套全新的 chibi sticker，共六个独特姿势，以用户形象为主角。第一款是双手比出剪刀手，俏皮地眨眼；第二款是泪眼汪汪，嘴唇微微颤动，呈现可爱哭泣的表情；第三款是张开双臂，做出热情的大大拥抱姿势；第四款是侧卧入睡，靠着迷你枕头，带着甜甜的微笑；第五款是自信满满地向前方伸手指，周围点缀闪亮特效；第六款是手势飞吻，周围飘散出爱心表情。所有形象应保留 chibi 美学风格，夸张有神的大眼睛，柔和的面部线条，活泼俏皮的短款黑色发型，配以大胆领口设计的白色服饰。背景使用充满活力的红色，并搭配星星或彩色纸屑元素进行装饰，周边适当留白。",
+        preview: "",
+      },
     ],
   },
 ];

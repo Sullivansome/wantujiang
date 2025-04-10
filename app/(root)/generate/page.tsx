@@ -38,6 +38,7 @@ export default function GeneratePage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
+  const [isNewCycleStarting, setIsNewCycleStarting] = useState(false);
 
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
@@ -69,10 +70,23 @@ export default function GeneratePage() {
       return;
     }
 
+    const isCurrentActionARetry = generatedImages.length > 0 && retryCount < 2;
+
+    if (!isCurrentActionARetry && generatedImages.length > 0) {
+      setIsNewCycleStarting(true);
+      return; // Stop here and wait for confirmation
+    }
+
+    // Continue with generation
+    await startGeneration(isCurrentActionARetry);
+  };
+
+  const startGeneration = async (isRetry: boolean) => {
     setIsDownloading(false);
     setIsLoading(true);
     setElapsed(0);
     setError("");
+    setIsNewCycleStarting(false);
 
     const start = Date.now();
     const timer = setInterval(() => {
@@ -81,8 +95,7 @@ export default function GeneratePage() {
 
     try {
       // Extract the base64 part from the data URL
-      const base64Data = imageBase64.split(",")[1];
-      const isRetry = retryCount > 0 && retryCount < 3; // Allow 2 retries (total 3 attempts)
+      const base64Data = imageBase64!.split(",")[1];
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -98,8 +111,25 @@ export default function GeneratePage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "生成失败，请重试");
+        let errorMsg = "生成失败，请重试";
+        try {
+          const errorData = await response.json();
+          errorMsg =
+            errorData.error ||
+            (errorData.details
+              ? `${errorData.error}: ${errorData.details}`
+              : errorMsg);
+          // Specific handling for insufficient credits
+          if (response.status === 402) {
+            errorMsg = "次数不足，请购买更多次数";
+          } else if (response.status === 401) {
+            errorMsg = "无效或未激活的密钥";
+          }
+        } catch (parseError) {
+          // If parsing fails, use the status text or default message
+          errorMsg = response.statusText || errorMsg;
+        }
+        throw new Error(errorMsg); // Throw the detailed error
       }
 
       const result = await response.json();
@@ -107,23 +137,28 @@ export default function GeneratePage() {
       // Add new image to the collection
       const newImage: GeneratedImage = {
         url: result.imageUrl,
-        presetId: selectedPreset,
-        presetName: getSelectedPresetName(selectedPreset),
+        presetId: selectedPreset!,
+        presetName: getSelectedPresetName(selectedPreset!),
         timestamp: Date.now(),
       };
 
       setGeneratedImages((prev) => [...prev, newImage]);
       setCurrentImageIndex(generatedImages.length); // Set to the newly added image
+
       const duration = Date.now() - start;
       setRequestTimes((prev) => [...prev, duration]);
 
+      if (isRetry) {
+        // We just completed a successful retry attempt
+        setRetryCount((prev) => prev + 1);
+      } else {
+        // This was the FIRST generation attempt for this image combination.
+        // Reset the count for potential retries within this cycle.
+        setRetryCount(0);
+      }
+
       if (result.remainingCredits !== undefined) {
         setRemainingCredits(result.remainingCredits);
-      }
-      if (!result.isRetry) {
-        setRetryCount(0); // Reset if it was a new generation
-      } else {
-        setRetryCount((prev) => prev + 1);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -199,6 +234,34 @@ export default function GeneratePage() {
         </p>
       </div>
 
+      {isNewCycleStarting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background w-full max-w-md rounded-lg p-6">
+            <h3 className="text-lg font-semibold">开始新的绘画过程</h3>
+            <p className="mt-2">
+              您将开始一个新的绘画过程，这将消耗一次生成次数。确定要继续吗？
+            </p>
+            <div className="mt-4 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsNewCycleStarting(false)}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={() => {
+                  // Clear the selected preset but keep the image and results
+                  setSelectedPreset(null);
+                  setRetryCount(0);
+                  setIsNewCycleStarting(false);
+                }}
+              >
+                确认
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-8 px-4 lg:flex-row lg:px-8">
         {/* Left Section - Image Upload & Preview */}
         <div className="w-full lg:w-3/5">
@@ -349,36 +412,46 @@ export default function GeneratePage() {
               className="w-full"
               size="lg"
               onClick={handleGenerate}
-              disabled={isLoading || !apiKey || !imageBase64 || !selectedPreset || retryCount >= 2}
+              disabled={
+                isLoading ||
+                !apiKey ||
+                !imageBase64 ||
+                !selectedPreset ||
+                isNewCycleStarting
+              }
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   生成中... ({elapsed}s)
                 </>
+              ) : generatedImages.length > 0 && retryCount < 2 ? (
+                <>重试（免费，剩余{2 - retryCount}次）</>
+              ) : generatedImages.length > 0 ? (
+                <>开始新周期（将扣费）</>
               ) : (
-                <>
-                  {generatedImages.length > 0 ? "再次生成" : "开始生成"}
-                  {/* {generatedImages.length > 0 && (
-                    <span className="ml-2 text-xs">
-                      ({generatedImages.length})
-                    </span>
-                  )} */}
-                </>
+                <>开始生成</>
               )}
             </Button>
 
             {generatedImages.length > 0 && (
               <div className="mt-2">
                 <p className="text-muted-foreground text-center text-sm">
-                  已生成 {generatedImages.length} 次
+                  当前图片已生成 {generatedImages.length} 次
+                  {retryCount > 0 && `，其中包含 ${retryCount} 次免费重试`}
                 </p>
               </div>
             )}
 
             {retryCount >= 2 && (
               <p className="text-muted-foreground mt-2 text-sm">
-                重试次数已用完，上传新图片可重新开始
+                免费重试次数已用完，可以开始新周期
+              </p>
+            )}
+
+            {!selectedPreset && generatedImages.length > 0 && (
+              <p className="text-muted-foreground mt-2 text-sm">
+                请选择一个新风格开始新的绘画过程
               </p>
             )}
 
@@ -386,8 +459,9 @@ export default function GeneratePage() {
               <p>提示:</p>
               <ul className="list-inside list-disc">
                 <li>图片大小不超过10MB</li>
-                <li>有两次免费重绘机会</li>
-                <li>可以比较多次生成的效果</li>
+                <li>每个生成周期有两次免费重试机会</li>
+                <li>新图片或新预设会开启新周期（消耗次数）</li>
+                <li>API失败不会消耗次数</li>
               </ul>
             </div>
           </div>
