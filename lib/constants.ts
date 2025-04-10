@@ -135,7 +135,23 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         id: "hazbinhotel",
         name: "地狱旅馆",
         description: "地狱旅馆风格",
-        prompt: "Turn this image into a hazbin hotel style image",
+        prompt: `"Transform this image into a Hazbin Hotel style image, following these detailed steps:
+
+Outline the Character and Background: Begin by creating sharp, clean, and smooth lines for the character and background, similar to the hand-drawn animation style of Hazbin Hotel. The lines should be slightly exaggerated, with the character's features and body having a stylized, whimsical feel. Focus on curves, especially for the body and facial features. Make sure the character has exaggerated proportions, such as an elongated neck, large expressive eyes, and small waist.
+
+Facial Features and Expression: Draw bold, expressive eyes that are large and very exaggerated, with highly detailed irises. The character's face should express vivid emotions, such as mischief, happiness, or drama, and the eyebrows should be highly expressive. The eyes should reflect the character's personality, with sharp or soft angles. The lips can be exaggerated, giving them a playful or seductive look, typical of Hazbin Hotel's vibrant character design.
+
+Costume Details: The character's clothing should be eccentric, bold, and colorful, matching the chaotic and dramatic aesthetic of Hazbin Hotel. Incorporate elements like stripes, patterns, and oversized accessories (like large bows, collars, or exaggerated cuffs). Use bold, contrasting colors—vivid reds, purples, blacks, and bright neons. Make sure the texture of the clothes appears slightly exaggerated, like exaggerated folds and details in the fabric. Incorporate accessories like chains, spikes, and flamboyant designs.
+
+Shading and Lighting: Use high-contrast, cartoonish shading, with sharp borders between light and dark areas. The shadows should be dramatic, almost theatrical, to emphasize the depth and dimensionality of the character. The light source should be bold, creating high contrast—such as glowing lights or a sharp spotlight effect that enhances the animated feel. Use angular shading to enhance the outlines of the character's body and costume, making sure to highlight exaggerated curves and edges.
+
+Background Style: Keep the background detailed yet whimsical, using a mix of surreal, dark, and vibrant elements. Think of backgrounds like abstract, geometric designs or stylized, dark cityscapes with glowing lights. Incorporate elements of fire, neon signs, or surreal urban environments to match the Hellish and chaotic theme of Hazbin Hotel. The environment should feel alive and dynamic, but not overpower the character, giving it a balance of intricacy and simplicity.
+
+Action and Movement: If the character is in motion, add playful or chaotic movement lines or sparks around them, but keep them stylized—sharp, exaggerated, and curving. For example, if the character is dancing or twirling, make the lines fluid and energetic. Movement should feel fast and alive, but the lines should be smooth, not jagged, matching the animated flow of Hazbin Hotel.
+
+Color Palette: Use a saturated, bold color palette with heavy use of neon, pastel tones, and dark contrasting shades. The character should stand out with bright colors, while the background can have darker shades of purples, blacks, and reds. Ensure that every color feels exaggerated and electric, creating a lively, intense visual appeal.
+
+Finishing Touches: Add some stylized, playful effects to the image, like glowing accents, neon glows, or animated sparkles around the character or their accessories. Use soft highlights along the hair and costume edges to give a glowing, polished feel that fits the show’s animation style. The final image should feel like a living, vibrant piece of animation, with a surreal and slightly chaotic flair."`,
         preview: "/gallery/hazbinhotel/1.png",
       },
       {
@@ -145,6 +161,29 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         prompt:
           "Transform this photo into Simpsons style art with yellow skin big eyes and that iconic Springfield look. Make it look like an official character from the show",
         preview: "/gallery/simpsons/1.jpg",
+      },
+      {
+        id: "invincible",
+        name: "无敌少侠",
+        description: "无敌少侠动画风格",
+        prompt: `"Transform this image into an Invincible style image, following these detailed steps:
+
+Outline the Character and Background: Begin with bold, clean, and sharp black lines. Use a thicker outline for the main character and a thinner line for the background and secondary elements. Ensure the character’s silhouette is strong and muscular, with exaggerated proportions, like broad shoulders and a narrow waist.
+
+Facial Features and Expression: For the character's face, use exaggerated yet clear features. Draw intense, sharp eyes with a strong, focused gaze. Add visible eyebrows to convey emotion, making them look determined or angry. The jawline should be defined, and facial expressions should be vivid, reflecting a serious or dramatic tone.
+
+Costume Details: Draw the costume with bright, primary colors. The costume should have a sleek, almost tight-fitting design, similar to traditional superhero outfits. Focus on clean, flat areas of color, such as bold reds, blues, yellows, or greens. Add minimal texture to give the costume a smooth, modern feel. For details like logos or symbols, ensure they are simple and striking, often with bold outlines.
+
+Shading and Lighting: Use sharp, high-contrast shading to emphasize muscle definition and the structure of the costume. Shadows should be stark and clear, with a strong light source coming from one direction (for example, from the top-left corner) to cast deep shadows on the opposite side. Keep the shadows mostly flat and sharp to match the style.
+
+Background Style: Keep the background relatively simple but with hints of dynamic movement. Use muted or gradient tones for the background, emphasizing the character. For urban settings or cityscapes, use minimal details and focus on architectural lines with a comic-book style.
+
+Action and Motion: If the scene involves movement, incorporate sharp, exaggerated motion lines that emphasize action. For example, if the character is flying or punching, create streaks of motion around them with sharp lines to show velocity and force. The impact should be emphasized with dynamic, intense lines radiating from the point of impact.
+
+Color Palette: Use bright, saturated primary colors for the character’s costume and elements of the image. The overall tone should feel vivid and energetic, but the shadows and background colors can be more muted, maintaining a comic-book feel.
+
+Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with the Invincible style. Use flat colors and sharp transitions between light and dark areas rather than gradients, which will give the image a more illustrative and comic-book-like appearance."`,
+        preview: "/gallery/invincible/1.png",
       },
       // Add more western animation presets...
     ],
