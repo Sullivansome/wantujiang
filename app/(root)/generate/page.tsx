@@ -224,6 +224,8 @@ export default function GeneratePage() {
   // Show current results or upload
   const showResults = generatedImages.length > 0;
   const currentImage = showResults ? generatedImages[currentImageIndex] : null;
+  const cycleLocked =
+    isLoading || (generatedImages.length > 0 && retryCount < 2);
 
   return (
     <div className="mx-auto min-h-screen w-full py-8 select-none">
@@ -398,7 +400,12 @@ export default function GeneratePage() {
           {/* Style Selection */}
           <div className="bg-card rounded-xl border p-6 shadow-sm">
             <h2 className="mb-4 text-xl font-medium">选择风格</h2>
-            <StylePresets onSelect={setSelectedPreset} />
+            <StylePresets
+              onSelect={setSelectedPreset}
+              disabled={cycleLocked}
+              currentPreset={selectedPreset}
+            />
+
             {selectedPreset && (
               <p className="text-muted-foreground mt-2 text-sm">
                 已选择: {getSelectedPresetName(selectedPreset)}
@@ -461,7 +468,8 @@ export default function GeneratePage() {
                 <li>图片大小不超过10MB</li>
                 <li>每个生成周期有两次免费重试机会</li>
                 <li>新图片或新预设会开启新周期（消耗次数）</li>
-                <li>API失败不会消耗次数</li>
+                <li>绘制不会消耗次数</li>
+                <li>大约需要两分钟</li>
               </ul>
             </div>
           </div>
