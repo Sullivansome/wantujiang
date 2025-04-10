@@ -66,7 +66,7 @@ export default function GeneratePage() {
     if (!imageBase64 || !selectedPreset) return;
 
     if (!apiKey) {
-      setError("请输入API密钥后再生成图片");
+      setError("请输入使用密钥后再生成图片");
       return;
     }
 
@@ -228,11 +228,11 @@ export default function GeneratePage() {
     isLoading || (generatedImages.length > 0 && retryCount < 2);
 
   return (
-    <div className="mx-auto min-h-screen w-full py-8 select-none">
+    <div className="mx-auto min-h-screen w-full py-8">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold">AI 图片风格重绘</h1>
         <p className="text-muted-foreground mt-2">
-          上传一张图片，选择风格，一键生成惊艳作品
+          告别复杂参数，图片风格随心变。
         </p>
       </div>
 
@@ -316,6 +316,7 @@ export default function GeneratePage() {
                     onClick={() => {
                       setGeneratedImages([]);
                       setCurrentImageIndex(0);
+                      setImageBase64(null);
                     }}
                   >
                     换张图片
@@ -465,11 +466,12 @@ export default function GeneratePage() {
             <div className="text-muted-foreground mt-4 text-sm">
               <p>提示:</p>
               <ul className="list-inside list-disc">
-                <li>图片大小不超过10MB</li>
-                <li>每个生成周期有两次免费重试机会</li>
-                <li>新图片或新预设会开启新周期（消耗次数）</li>
-                <li>绘制不会消耗次数</li>
                 <li>大约需要两分钟</li>
+                <li>两次免费重画机会</li>
+                <li>图片大小不超过10MB</li>
+                <li>
+                  新图片或新预设会开启新周期（消耗次数），绘制失败不会消耗次数
+                </li>
               </ul>
             </div>
           </div>

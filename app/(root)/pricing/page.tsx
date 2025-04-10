@@ -137,6 +137,9 @@ export default function PricingPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="mb-8 text-center text-3xl font-bold">购买绘画次数</h1>
+      <h1 className="mb-8 text-center text-3xl font-bold">
+        一元一次（含两次免费重画机会）
+      </h1>
 
       <div className="mx-auto max-w-md space-y-8">
         {/* Payment Methods */}
@@ -214,12 +217,11 @@ export default function PricingPage() {
               <Label>上传支付截图</Label>
               <Input
                 type="file"
-                id="paymentProofInput" 
+                id="paymentProofInput"
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="cursor-pointer"
                 ref={(e) => {
-                  
                   paymentProofRef.current = e;
                 }}
               />

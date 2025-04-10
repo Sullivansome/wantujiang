@@ -17,7 +17,7 @@ export type StyleCategory = {
 export const STYLE_CATEGORIES: StyleCategory[] = [
   {
     id: "anime",
-    name: "动漫风格",
+    name: "日本动漫",
     description: "各种日本动漫风格",
     thumbnail: "/categories/anime.png",
     presets: [
@@ -68,13 +68,13 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
           "Turn this image into a Studio Ghibli-style animated image. Use the soft color palette, whimsical background, and facial features inspired by Ghibli characters.",
         preview: "/gallery/ghibli/1.png",
       },
-      {
-        id: "jojo",
-        name: "JOJO的奇妙冒险",
-        description: "JOJO的奇妙冒险风格",
-        prompt: "Transform this image in the style of JoJo's Bizarre Adventure",
-        preview: "/gallery/jojo/1.png",
-      },
+      // {
+      //   id: "jojo",
+      //   name: "JOJO的奇妙冒险",
+      //   description: "JOJO的奇妙冒险风格",
+      //   prompt: "Transform this image in the style of JoJo's Bizarre Adventure",
+      //   preview: "/gallery/jojo/1.png",
+      // },
       {
         id: "demonslayer",
         name: "鬼灭之刃",
@@ -97,24 +97,23 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         description: "海贼王动画风格",
         prompt:
           "Redraw this image in the One Piece anime style. Emphasize Eiichiro Oda's distinctive character proportions (often exaggerated or cartoony), bold outlines, vibrant colors suitable for a grand adventure, expressive and often comical facial features, and a dynamic, energetic composition.",
-        preview: "/gallery/onepiece/1.png",
+        preview: "/gallery/onepiece/1.jpg",
       },
-      {
-        id: "spyxfamily",
-        name: "间谍过家家",
-        description: "间谍过家家动画风格",
-        prompt:
-          "Adapt this image into the Spy x Family anime style. Use clean lines, elegant and distinct character designs (think Loid's sharpness, Yor's grace, Anya's expressiveness), a bright and clear color palette with influences from mid-century aesthetics, and focus on highly expressive facial reactions, especially for comedic effect.",
-        preview: "/gallery/spyxfamily/1.png",
-      },
-      {
-        id: "dragonball",
-        name: "龙珠",
-        description: "龙珠Z/超动画风格",
-        prompt:
-          "Transform this image into the Dragon Ball Z/Super style by Akira Toriyama. Feature characters with spiky hair, defined musculature, distinct angular facial features, simple, bold outlines, bright colors, and dynamic action poses. Include energy effects (Ki auras, blasts) if relevant.",
-        preview: "/gallery/dragonball/1.png",
-      },
+      // {
+      //   id: "spyxfamily",
+      //   name: "间谍过家家",
+      //   description: "间谍过家家动画风格",
+      //   prompt: "Adapt this image into the Spy x Family anime style.",
+      //   preview: "/gallery/spyxfamily/1.png",
+      // },
+      // {
+      //   id: "dragonball",
+      //   name: "龙珠",
+      //   description: "龙珠Z/超动画风格",
+      //   prompt:
+      //     "Transform this image into the Dragon Ball Z/Super style by Akira Toriyama.",
+      //   preview: "/gallery/dragonball/1.png",
+      // },
       // Add more anime presets...
     ],
   },
@@ -152,7 +151,7 @@ Action and Movement: If the character is in motion, add playful or chaotic movem
 Color Palette: Use a saturated, bold color palette with heavy use of neon, pastel tones, and dark contrasting shades. The character should stand out with bright colors, while the background can have darker shades of purples, blacks, and reds. Ensure that every color feels exaggerated and electric, creating a lively, intense visual appeal.
 
 Finishing Touches: Add some stylized, playful effects to the image, like glowing accents, neon glows, or animated sparkles around the character or their accessories. Use soft highlights along the hair and costume edges to give a glowing, polished feel that fits the show’s animation style. The final image should feel like a living, vibrant piece of animation, with a surreal and slightly chaotic flair."`,
-        preview: "/gallery/hazbinhotel/1.png",
+        preview: "/gallery/hazbinhotel/1.jpg",
       },
       {
         id: "simpsons",
@@ -183,7 +182,7 @@ Action and Motion: If the scene involves movement, incorporate sharp, exaggerate
 Color Palette: Use bright, saturated primary colors for the character’s costume and elements of the image. The overall tone should feel vivid and energetic, but the shadows and background colors can be more muted, maintaining a comic-book feel.
 
 Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with the Invincible style. Use flat colors and sharp transitions between light and dark areas rather than gradients, which will give the image a more illustrative and comic-book-like appearance."`,
-        preview: "/gallery/invincible/1.png",
+        preview: "/gallery/invincible/1.jpg",
       },
       // Add more western animation presets...
     ],
@@ -198,15 +197,16 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
         id: "watercolor",
         name: "水彩画",
         description: "传统水彩画效果",
-        prompt: "Your watercolor prompt here...",
+        prompt:
+          "Transform this image into  water color style.",
         preview: "/gallery/watercolor/1.png",
       },
       {
         id: "oil-painting",
         name: "油画",
-        description: "古典油画效果",
-        prompt: "Your oil painting prompt here...",
-        preview: "/gallery/oil-painting/1.png",
+        description: "油画效果",
+        prompt: "Transform this image into oil painting style.",
+        preview: "/gallery/oilpaint/1.jpg",
       },
       // Add more art style presets...
     ],
@@ -215,15 +215,22 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
     id: "various",
     name: "其他热门",
     description: "各种风格",
-    thumbnail: "/categories/various.png",
+    thumbnail: "/categories/various.jpg",
     presets: [
       {
         id: "toy",
         name: "手办",
         description: "手办",
         prompt:
-          "Create image. Create a toy of the person in the photo. Let it be an action figure. Next to the figure, there should be the toy’s equipment, each in its individual blisters. 1) a book called “Tecnoforma”. 2) A 3-headed dog with a tag that says “Troika” and a bone at its feet with word “austerity” written on it. 3) a three-headed Hydra with with a tag called “Geringonça”. 4) a book titled “D. Sebastião”. Don’t repeat the equipment under any circumstance. The card holding the blister should be strong orange. Also, on top of the box, write ‘Pedro Passos Coelho’ and underneath it, ‘PSD action figure’. The figure and equipment must all be inside blisters. Visualize this in a realistic way.",
-        preview: "/gallery/toys/1/jpg",
+          "Create image. Create a toy of the person in the photo. Let it be an action figure. Next to the figure, there should be the toy’s equipment, each in its individual blisters. Don’t repeat the equipment under any circumstance. The card holding the blister should be strong orange. Also, on top of the box, write ‘Pedro Passos Coelho’ and underneath it, ‘PSD action figure’. The figure and equipment must all be inside blisters. Visualize this in a realistic way.",
+        preview: "/gallery/toys/1.jpg",
+      },
+      {
+        id: "onepiecetoy",
+        name: "海贼王手办",
+        description: "上传半身或全身照",
+        prompt: `把照片中的人物变成《海贼王》（One Piece）动漫主题手办包装盒的风格，以等距视角（isometric）呈现。包装盒内展示的是基于照片人物的《海贼王》动漫画风设计的形象，旁边搭配有日常必备物品（苹果笔记本电脑，手机，眼镜，帽子，咖啡）同时，在包装盒旁边还应呈现该手办本体的实物效果，采用逼真的、具有真实感的渲染风格。`,
+        preview: "/gallery/onepiecetoys/1.jpg",
       },
       {
         id: "meme",
@@ -231,35 +238,8 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
         description: "上传您的自拍，制作六张专属表情包",
         prompt:
           "请创作一套全新的 chibi sticker，共六个独特姿势，以用户形象为主角。第一款是双手比出剪刀手，俏皮地眨眼；第二款是泪眼汪汪，嘴唇微微颤动，呈现可爱哭泣的表情；第三款是张开双臂，做出热情的大大拥抱姿势；第四款是侧卧入睡，靠着迷你枕头，带着甜甜的微笑；第五款是自信满满地向前方伸手指，周围点缀闪亮特效；第六款是手势飞吻，周围飘散出爱心表情。所有形象应保留 chibi 美学风格，夸张有神的大眼睛，柔和的面部线条，活泼俏皮的短款黑色发型，配以大胆领口设计的白色服饰。背景使用充满活力的红色，并搭配星星或彩色纸屑元素进行装饰，周边适当留白。",
-        preview: "",
+        preview: "/gallery/custommeme/1.jpg",
       },
     ],
   },
-];
-
-export const STYLE_PRESETS = [
-  // {
-  //   id: "cartoon",
-  //   name: "卡通风格",
-  //   description: "皮克斯风格的3D卡通效果",
-  //   prompt:
-  //     "Convert this image into a Pixar-style 3D cartoon with vibrant colors and soft lighting",
-  //   preview: "",
-  // },
-  // {
-  //   id: "watercolor",
-  //   name: "水彩画风格",
-  //   description: "传统水彩画效果",
-  //   prompt:
-  //     "Transform this image into a beautiful watercolor painting with visible brush strokes",
-  //   preview: "",
-  // },
-  // {
-  //   id: "cyberpunk",
-  //   name: "赛博朋克风格",
-  //   description: "霓虹灯未来都市风格",
-  //   prompt:
-  //     "Give this image a neon-lit cyberpunk aesthetic with futuristic elements",
-  //   preview: "",
-  // },
 ] as const;
