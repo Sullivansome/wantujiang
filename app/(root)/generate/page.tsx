@@ -297,7 +297,8 @@ export default function GeneratePage() {
   const showResults = generatedImages.length > 0;
   const currentImage = showResults ? generatedImages[currentImageIndex] : null;
   const cycleLocked =
-    isLoading || (generatedImages.length > 0 && retryCount < 2);
+    isLoading ||
+    (selectedPreset !== null && generatedImages.length > 0 && retryCount < 2);
 
   return (
     <div className="mx-auto min-h-screen w-full py-8">
