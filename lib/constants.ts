@@ -24,7 +24,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       {
         id: "MakotoShinkai",
         name: "新海诚",
-        description: "新海诚动画电影风格",
+        description: "图片需包含人物",
         prompt: `生成3:2图片，将我的照片转换为下面这种动画风格：
 
       1. 极致写实的背景与环境细节：
@@ -88,7 +88,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
         name: "进击的巨人",
         description: "进击的巨人动画风格",
         prompt:
-          "Transform this image into the Attack on Titan (Shingeki no Kyojin) anime style. Use thick, bold outlines, detailed character designs with intense expressions, a generally muted and gritty color palette (earth tones, greys), dramatic shading and lighting, and convey a sense of scale and intensity. Include elements of the Survey Corps uniform or ODM gear if appropriate.",
+          "Transform this image into the Attack on Titan (Shingeki no Kyojin) anime style. Use thick, bold outlines, detailed character designs with intense expressions if there is character in the image, a generally muted and gritty color palette (earth tones, greys), dramatic shading and lighting, and convey a sense of scale and intensity. Include elements of the Survey Corps uniform or ODM gear if appropriate.",
         preview: "/gallery/attackontitan/1.jpg",
       },
       {
@@ -197,8 +197,7 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
         id: "watercolor",
         name: "水彩画",
         description: "传统水彩画效果",
-        prompt:
-          "Transform this image into  water color style.",
+        prompt: "Transform this image into  water color style.",
         preview: "/gallery/watercolor/1.png",
       },
       {

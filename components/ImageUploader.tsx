@@ -74,7 +74,9 @@ export function ImageUploader({
       <div className="flex flex-col items-center justify-center space-y-3 p-5 text-center">
         <Upload className="h-10 w-10 text-gray-400" />
         <p className="text-lg font-medium">拖拽或点击上传图片</p>
-        <p className="text-muted-foreground text-sm">支持 JPG, PNG 格式</p>
+        <p className="text-muted-foreground text-sm">
+          支持 JPG, PNG, WebP, HEIC, HEIF 等格式
+        </p>
       </div>
     </div>
   );

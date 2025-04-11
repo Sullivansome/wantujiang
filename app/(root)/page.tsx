@@ -158,7 +158,7 @@ export default function Home() {
                 className="text-md relative z-10 h-12 px-8 shadow-lg"
               >
                 <Link href="/generate" legacyBehavior={false}>
-                  立即免费体验
+                  立即体验
                 </Link>
               </Button>
               <Button

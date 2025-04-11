@@ -25,6 +25,16 @@ interface GeneratedImage {
   timestamp: number;
 }
 
+type StreamedMessage = {
+  done?: boolean;
+  error?: string;
+  content?: string;
+  imageUrl?: string;
+  remainingCredits?: number;
+  isRetry?: boolean;
+  isNewCycle?: boolean;
+};
+
 export default function GeneratePage() {
   const [apiKey, setApiKey] = useState("");
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -40,18 +50,40 @@ export default function GeneratePage() {
   const [retryCount, setRetryCount] = useState<number>(0);
   const [isNewCycleStarting, setIsNewCycleStarting] = useState(false);
 
-  const handleFileSelect = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64String = event.target?.result as string;
-      setImageBase64(base64String);
-      setRetryCount(0); // Reset retry count for new image
-    };
-    reader.readAsDataURL(file);
+  const handleFileSelect = async (file: File) => {
+    setRetryCount(0);
     setError("");
-    // Clear generated images when uploading a new image
     setGeneratedImages([]);
     setCurrentImageIndex(0);
+
+    if (file.type === "image/heic" || file.type === "image/heif") {
+      try {
+        const heic2any = (await import("heic2any")).default;
+        const result = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 0.95,
+        });
+        // result can be Blob or Blob[]
+        const outputBlob = Array.isArray(result) ? result[0] : result;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setImageBase64(event.target?.result as string);
+        };
+        reader.readAsDataURL(outputBlob);
+        return;
+      } catch (e) {
+        setError("HEIC/HEIF 转换失败，请尝试其他图片格式！");
+        console.error(e);
+        return;
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImageBase64(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const getSelectedPresetName = (presetId: string) => {
@@ -93,15 +125,14 @@ export default function GeneratePage() {
       setElapsed(Math.floor((Date.now() - start) / 1000));
     }, 100);
 
+    let finalResult: StreamedMessage | null = null;
+
     try {
-      // Extract the base64 part from the data URL
       const base64Data = imageBase64!.split(",")[1];
 
       const response = await fetch("/api/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey,
           image: base64Data,
@@ -119,47 +150,87 @@ export default function GeneratePage() {
             (errorData.details
               ? `${errorData.error}: ${errorData.details}`
               : errorMsg);
-          // Specific handling for insufficient credits
           if (response.status === 402) {
             errorMsg = "次数不足，请购买更多次数";
           } else if (response.status === 401) {
             errorMsg = "无效或未激活的密钥";
           }
         } catch (parseError) {
-          // If parsing fails, use the status text or default message
           errorMsg = response.statusText || errorMsg;
           console.error(parseError);
         }
-        throw new Error(errorMsg); // Throw the detailed error
+        throw new Error(errorMsg);
       }
 
-      const result = await response.json();
+      // ---- STREAMING SECTION ----
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      // Add new image to the collection
-      const newImage: GeneratedImage = {
-        url: result.imageUrl,
-        presetId: selectedPreset!,
-        presetName: getSelectedPresetName(selectedPreset!),
-        timestamp: Date.now(),
-      };
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-      setGeneratedImages((prev) => [...prev, newImage]);
-      setCurrentImageIndex(generatedImages.length); // Set to the newly added image
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let msg: StreamedMessage;
+          try {
+            msg = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (msg.content) {
+            // Optionally display or accumulate content
+          }
+          if (msg.done) {
+            finalResult = msg;
+          }
+          if (msg.error) {
+            throw new Error(msg.error);
+          }
+        }
+      }
+      if (buffer.trim()) {
+        try {
+          const msg: StreamedMessage = JSON.parse(buffer);
+          if (msg.content) {
+            // Optionally accumulate/display
+          }
+          if (msg.done) {
+            finalResult = msg;
+          }
+          if (msg.error) throw new Error(msg.error);
+        } catch {}
+      }
+
+      if (!finalResult) throw new Error("No result received from server");
+
+      if (finalResult.imageUrl) {
+        const newImage: GeneratedImage = {
+          url: finalResult.imageUrl,
+          presetId: selectedPreset!,
+          presetName: getSelectedPresetName(selectedPreset!),
+          timestamp: Date.now(),
+        };
+
+        setGeneratedImages((prev) => [...prev, newImage]);
+        setCurrentImageIndex(generatedImages.length);
+      }
 
       const duration = Date.now() - start;
       setRequestTimes((prev) => [...prev, duration]);
 
       if (isRetry) {
-        // We just completed a successful retry attempt
         setRetryCount((prev) => prev + 1);
       } else {
-        // This was the FIRST generation attempt for this image combination.
-        // Reset the count for potential retries within this cycle.
         setRetryCount(0);
       }
 
-      if (result.remainingCredits !== undefined) {
-        setRemainingCredits(result.remainingCredits);
+      if (typeof finalResult.remainingCredits === "number") {
+        setRemainingCredits(finalResult.remainingCredits);
       }
     } catch (err) {
       setError((err as Error).message);

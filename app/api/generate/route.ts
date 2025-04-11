@@ -2,9 +2,13 @@ import { STYLE_CATEGORIES } from "@/lib/constants";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { ChatCompletionContentPart } from "openai/resources/chat/completions";
+import {
+  ChatCompletionContentPart,
+  ChatCompletionChunk,
+} from "openai/resources/chat/completions";
+import { Stream } from "openai/streaming";
 
-// export const runtime = "edge";
+export const runtime = "edge";
 
 // interface FormattedResponse {
 //   id: string;
@@ -38,125 +42,166 @@ import { ChatCompletionContentPart } from "openai/resources/chat/completions";
 //   createdAt: Date;
 // }
 
+function detectImageType(base64: string): string {
+  if (base64.startsWith("/9j/")) return "jpeg"; // JPEG
+  if (base64.startsWith("iVBOR")) return "png"; // PNG
+  if (base64.startsWith("UklGR")) return "webp"; // WebP
+  if (base64.startsWith("SUkqA") || base64.startsWith("AAABAA")) return "tiff"; // TIFF (less common)
+  // HEIC/HEIF signatures (first 4 bytes are ftyp, followed by 'heic'/'heix'/'hevc'/'hevx'..., encoded in base64)
+  // Example for HEIC: 00000018 66747970 68656963 (in base64: "AAAAAWZ0eXBoZWlj")
+  if (base64.slice(4, 16).includes("ZnR5cG")) {
+    // check for 'ftyp'
+    const brand = atob(base64).slice(8, 12);
+    if (
+      brand === "heic" ||
+      brand === "heix" ||
+      brand === "hevc" ||
+      brand === "hevx" ||
+      brand === "mif1" ||
+      brand === "msf1"
+    ) {
+      return "heic";
+    }
+  }
+  // fallback
+  return "jpeg";
+}
+
 export async function POST(req: Request) {
-  // console.log("Received request to generate image");
   const { apiKey, presetId, image, isRetry = false } = await req.json();
-  try {
-    if (!apiKey || !presetId || !image) {
-      return NextResponse.json(
-        { error: "Missing parameters" },
-        { status: 400 },
-      );
-    }
 
-    let remainingCredits;
-    let isNewCycle = false;
+  // Validate input
+  if (!apiKey || !presetId || !image) {
+    return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+  }
 
-    // Validate API key and check credits (only if not a retry)
-    if (!isRetry) {
-      const { data: keyData, error: keyError } = await supabaseAdmin
-        .from("api_keys")
-        .select("credits")
-        .eq("key", apiKey)
-        .eq("status", "active")
-        .single();
+  // Prepare credits, etc
+  let remainingCredits: number | undefined;
+  let isNewCycle = false;
 
-      // console.log("Query results:", { keyData, keyError });
-      if (keyError) {
-        console.error("Supabase error:", keyError);
-        return NextResponse.json(
+  // Streaming body set-up
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Validate API, check credits (if not retry)
+        if (!isRetry) {
+          const { data: keyData, error: keyError } = await supabaseAdmin
+            .from("api_keys")
+            .select("credits")
+            .eq("key", apiKey)
+            .eq("status", "active")
+            .single();
+          if (keyError || !keyData) {
+            controller.enqueue(
+              JSON.stringify({
+                done: true,
+                error: keyError?.message || "Invalid API key or inactive key",
+              }) + "\n",
+            );
+            controller.close();
+            return;
+          }
+          if (keyData.credits < 1) {
+            controller.enqueue(
+              JSON.stringify({ done: true, error: "Insufficient credits" }) +
+                "\n",
+            );
+            controller.close();
+            return;
+          }
+          // Deduct credit up front
+          isNewCycle = true;
+          const { error: updateError } = await supabaseAdmin
+            .from("api_keys")
+            .update({ credits: keyData.credits - 1 })
+            .eq("key", apiKey);
+          if (updateError) {
+            controller.enqueue(
+              JSON.stringify({
+                done: true,
+                error: "Failed to deduct credits",
+              }) + "\n",
+            );
+            controller.close();
+            return;
+          }
+          remainingCredits = keyData.credits - 1;
+        }
+
+        // Prepare for streaming from OpenAI
+        const imageType = detectImageType(image);
+
+        const prompt = STYLE_CATEGORIES.flatMap((c) => c.presets).find(
+          (p) => p.id === presetId,
+        )?.prompt;
+
+        const openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY!,
+          baseURL: process.env.OPENAI_API_BASE_URL,
+        });
+
+        const content: ChatCompletionContentPart[] = [
           {
-            error: "Database error",
-            details: keyError.message,
+            type: "image_url",
+            image_url: { url: `data:image/${imageType};base64,${image}` },
           },
-          { status: 500 },
-        );
-      }
-
-      if (!keyData) {
-        return NextResponse.json(
           {
-            error: "Invalid API key or inactive key",
-            details: `No active key found matching: ${apiKey}`,
+            type: "text",
+            text: prompt as string,
           },
-          { status: 401 },
+        ];
+
+        const responseStream: Stream<ChatCompletionChunk> =
+          await openai.chat.completions.create({
+            model: process.env.OPENAI_MODEL as string,
+            // Correct message typing:
+            messages: [
+              {
+                role: "user",
+                content,
+              },
+            ],
+            stream: true,
+          });
+
+        let finalText = "";
+
+        // Send open stream data to the client as ndjson
+        for await (const chunk of responseStream) {
+          // Stream each chunk.plain delta/content as it arrives
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            controller.enqueue(JSON.stringify({ done: false, content }) + "\n");
+            finalText += content;
+          }
+        }
+
+        // Try to extract image URL from the final output
+        const imageUrlMatch = finalText.match(
+          /!\[.*?\]\((https?:\/\/[^\s]+)\)/,
         );
-      }
+        const imageUrl = imageUrlMatch?.[1];
 
-      if (keyData.credits < 1) {
-        return NextResponse.json(
-          { error: "Insufficient credits" },
-          { status: 402 },
+        if (!imageUrl && isNewCycle) {
+          await supabaseAdmin // revert credits if fail
+            .from("api_keys")
+            .update({ credits: remainingCredits! + 1 })
+            .eq("key", apiKey);
+          remainingCredits = remainingCredits! + 1;
+        }
+
+        controller.enqueue(
+          JSON.stringify({
+            done: true,
+            imageUrl: imageUrl || null,
+            remainingCredits,
+            isRetry,
+            isNewCycle,
+          }) + "\n",
         );
-      }
-
-      // Deduct credits - Don't deduct on retries
-      isNewCycle = true;
-      const { error: updateError } = await supabaseAdmin
-        .from("api_keys")
-        .update({ credits: keyData.credits - 1 })
-        .eq("key", apiKey);
-
-      if (updateError) {
-        return NextResponse.json(
-          { error: "Failed to deduct credits" },
-          { status: 500 },
-        );
-      }
-
-      // Return remaining credits
-      remainingCredits = keyData.credits - 1;
-    }
-
-    // Continue with image generation
-    const imageType = image.startsWith("/")
-      ? "jpeg"
-      : image.startsWith("iVBOR")
-        ? "png"
-        : "jpeg";
-
-    const prompt = STYLE_CATEGORIES.flatMap(
-      (category) => category.presets,
-    ).find((p) => p.id === presetId)?.prompt;
-
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_API_BASE_URL,
-    });
-
-    try {
-      const messageContent: ChatCompletionContentPart[] = [
-        {
-          type: "image_url",
-          image_url: { url: `data:image/${imageType};base64,${image}` },
-        },
-        {
-          type: "text",
-          // prompt is now guaranteed to be a string here
-          text: prompt as string,
-        },
-      ];
-
-      // This error occurs the proxy do not follow openai api standard
-      const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL as string,
-        messages: [
-          {
-            role: "user",
-            content: messageContent,
-          },
-        ],
-      });
-
-      const content = response.choices[0]?.message?.content || "";
-      const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
-      const imageUrl = imageUrlMatch?.[1];
-
-      // console.log("\n=== IMAGE URL ===");
-      // console.log(imageUrl || "No image URL found in response");
-
-      if (!imageUrl) {
-        // If API request failed as there's no image URL, revert credit deduction
+        controller.close();
+      } catch (err: unknown) {
+        // Ensure credit rollback if needed
         if (isNewCycle) {
           await supabaseAdmin
             .from("api_keys")
@@ -164,50 +209,20 @@ export async function POST(req: Request) {
             .eq("key", apiKey);
           remainingCredits = remainingCredits! + 1;
         }
-
-        return NextResponse.json(
-          { success: false, error: "Image generation failed" },
-          { status: 500 },
+        controller.enqueue(
+          JSON.stringify({
+            done: true,
+            error: err || "Image generation failed",
+          }) + "\n",
         );
+        controller.close();
       }
+    },
+  });
 
-      return NextResponse.json({
-        success: true,
-        tokens: response.usage,
-        imageUrl,
-        remainingCredits,
-        isRetry,
-        isNewCycle,
-      });
-    } catch (apiError: unknown) {
-      console.error("OpenAI API error:", apiError);
-
-      // If API request failed, revert credit deduction
-      if (isNewCycle) {
-        await supabaseAdmin
-          .from("api_keys")
-          .update({ credits: remainingCredits! + 1 })
-          .eq("key", apiKey);
-        remainingCredits = remainingCredits! + 1;
-      }
-
-      const errorMessage =
-        apiError instanceof Error ? apiError.message : "API request failed";
-
-      return NextResponse.json(
-        { success: false, error: errorMessage },
-        { status: 500 },
-      );
-    }
-  } catch (err: unknown) {
-    console.error("Generation failed:", err);
-    const errorMessage =
-      err instanceof Error ? err.message : "Image generation failed";
-    return NextResponse.json(
-      { success: false, error: errorMessage },
-      { status: 500 },
-    );
-  }
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson" },
+  });
 }
 
 // function formatTuZiResponse(response: any): FormattedResponse {
