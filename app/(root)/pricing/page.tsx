@@ -167,6 +167,7 @@ export default function PricingPage() {
             <Button
               variant={paymentMethod === "alipay" ? "default" : "outline"}
               onClick={() => reset({ ...watch(), paymentMethod: "alipay" })}
+              disabled
               className="flex-1"
             >
               支付宝
