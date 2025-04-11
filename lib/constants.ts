@@ -1,5 +1,6 @@
 export type StylePreset = {
   id: string;
+  enabled: boolean;
   name: string;
   description: string;
   prompt: string;
@@ -8,6 +9,7 @@ export type StylePreset = {
 
 export type StyleCategory = {
   id: string;
+  enabled: boolean;
   name: string;
   description: string;
   thumbnail: string;
@@ -17,14 +19,16 @@ export type StyleCategory = {
 export const STYLE_CATEGORIES: StyleCategory[] = [
   {
     id: "anime",
+    enabled: true,
     name: "日本动漫",
     description: "各种日本动漫风格",
     thumbnail: "/categories/anime.png",
     presets: [
       {
         id: "MakotoShinkai",
+        enabled: true,
         name: "新海诚",
-        description: "图片需包含人物",
+        description: "有人物的风景照效果最佳",
         prompt: `生成3:2图片，将我的照片转换为下面这种动画风格：
 
       1. 极致写实的背景与环境细节：
@@ -62,6 +66,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       },
       {
         id: "ghibli",
+        enabled: true,
         name: "宫崎骏风格",
         description: "宫崎骏风格",
         prompt:
@@ -77,6 +82,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       // },
       {
         id: "demonslayer",
+        enabled: true,
         name: "鬼灭之刃",
         description: "鬼灭之刃动画风格",
         prompt:
@@ -85,6 +91,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       },
       {
         id: "attackontitan",
+        enabled: true,
         name: "进击的巨人",
         description: "进击的巨人动画风格",
         prompt:
@@ -93,6 +100,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       },
       {
         id: "onepiece",
+        enabled: true,
         name: "海贼王",
         description: "海贼王动画风格",
         prompt:
@@ -106,25 +114,28 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       //   prompt: "Adapt this image into the Spy x Family anime style.",
       //   preview: "/gallery/spyxfamily/1.png",
       // },
-      // {
-      //   id: "dragonball",
-      //   name: "龙珠",
-      //   description: "龙珠Z/超动画风格",
-      //   prompt:
-      //     "Transform this image into the Dragon Ball Z/Super style by Akira Toriyama.",
-      //   preview: "/gallery/dragonball/1.png",
-      // },
+      {
+        id: "dragonball",
+        name: "龙珠",
+        enabled: false,
+        description: "龙珠Z/超动画风格",
+        prompt:
+          "Transform this image into the Dragon Ball Z/Super style by Akira Toriyama.",
+        preview: "/gallery/dragonball/1.png",
+      },
       // Add more anime presets...
     ],
   },
   {
     id: "western-animation",
+    enabled: true,
     name: "欧美动画",
     description: "西方动画风格",
     thumbnail: "/categories/western.png",
     presets: [
       {
         id: "rickandmorty",
+        enabled: true,
         name: "瑞克和莫蒂",
         description: "瑞克和莫蒂风格",
         prompt: "Turn this image into a rick and morty style image",
@@ -132,6 +143,7 @@ export const STYLE_CATEGORIES: StyleCategory[] = [
       },
       {
         id: "hazbinhotel",
+        enabled: true,
         name: "地狱旅馆",
         description: "地狱旅馆风格",
         prompt: `"Transform this image into a Hazbin Hotel style image, following these detailed steps:
@@ -155,6 +167,7 @@ Finishing Touches: Add some stylized, playful effects to the image, like glowing
       },
       {
         id: "simpsons",
+        enabled: true,
         name: "辛普森一家",
         description: "辛普森一家动画风格",
         prompt:
@@ -163,6 +176,7 @@ Finishing Touches: Add some stylized, playful effects to the image, like glowing
       },
       {
         id: "invincible",
+        enabled: true,
         name: "无敌少侠",
         description: "无敌少侠动画风格",
         prompt: `"Transform this image into an Invincible style image, following these detailed steps:
@@ -189,12 +203,14 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
   },
   {
     id: "art-styles",
+    enabled: true,
     name: "艺术风格",
     description: "各种绘画艺术风格",
     thumbnail: "/categories/art.jpg",
     presets: [
       {
         id: "watercolor",
+        enabled: true,
         name: "水彩画",
         description: "传统水彩画效果",
         prompt: "Transform this image into  water color style.",
@@ -202,6 +218,7 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
       },
       {
         id: "oil-painting",
+        enabled: true,
         name: "油画",
         description: "油画效果",
         prompt: "Transform this image into oil painting style.",
@@ -212,12 +229,14 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
   },
   {
     id: "various",
+    enabled: true,
     name: "其他热门",
     description: "各种风格",
     thumbnail: "/categories/various.jpg",
     presets: [
       {
         id: "toy",
+        enabled: true,
         name: "手办",
         description: "手办",
         prompt:
@@ -226,6 +245,7 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
       },
       {
         id: "onepiecetoy",
+        enabled: true,
         name: "海贼王手办",
         description: "上传半身或全身照",
         prompt: `把照片中的人物变成《海贼王》（One Piece）动漫主题手办包装盒的风格，以等距视角（isometric）呈现。包装盒内展示的是基于照片人物的《海贼王》动漫画风设计的形象，旁边搭配有日常必备物品（苹果笔记本电脑，手机，眼镜，帽子，咖啡）同时，在包装盒旁边还应呈现该手办本体的实物效果，采用逼真的、具有真实感的渲染风格。`,
@@ -233,6 +253,7 @@ Finishing Touches: Apply a slight cel-shaded effect to keep the art in line with
       },
       {
         id: "meme",
+        enabled: true,
         name: "个人表情包",
         description: "上传您的自拍，制作六张专属表情包",
         prompt:

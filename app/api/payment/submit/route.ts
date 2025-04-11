@@ -6,6 +6,8 @@ export async function POST(request: Request) {
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+    const message_id = crypto.randomUUID();
+
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
       return NextResponse.json(
         { error: "Telegram configuration missing" },
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
     const paymentProof = formData.get("paymentProof");
 
     let message = `⚡️ 有新的支付信息提交 ⚡️\n\n`;
+    message += `💬 消息ID: \`${message_id}\`\n`;
     message += `💰 支付方式: ${paymentMethod === "wechat" ? "微信支付" : "支付宝"}\n`;
     if (email) message += `📧 邮箱: ${email}\n`;
     if (contact) message += `💬 微信/QQ: ${contact}\n`;
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
       const imageFormData = new FormData();
       imageFormData.append("chat_id", TELEGRAM_CHAT_ID);
       imageFormData.append("photo", paymentProof);
-      imageFormData.append("caption", "支付凭证截图");
+      imageFormData.append("caption", message_id);
 
       await fetch(
         `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,

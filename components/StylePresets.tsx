@@ -39,7 +39,7 @@ export function StylePresets({
 
       {/* Category Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {STYLE_CATEGORIES.map((category) => {
+        {STYLE_CATEGORIES.filter((c) => c.enabled).map((category) => {
           const hasCurrentPreset =
             currentPreset &&
             category.presets.some((p) => p.id === currentPreset);
@@ -98,42 +98,44 @@ export function StylePresets({
             </DialogHeader>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {selectedCategory.presets.map((preset) => {
-                const isSelected = currentPreset === preset.id;
-                const isPresetDisabled = disabled && !isSelected;
+              {selectedCategory.presets
+                .filter((preset) => preset.enabled)
+                .map((preset) => {
+                  const isSelected = currentPreset === preset.id;
+                  const isPresetDisabled = disabled && !isSelected;
 
-                return (
-                  <div
-                    key={preset.id}
-                    onClick={() => {
-                      if (!isPresetDisabled) {
-                        onSelect(preset.id);
-                        setSelectedCategory(null);
-                      }
-                    }}
-                    className={`cursor-pointer rounded-lg border p-3 transition-all ${
-                      isPresetDisabled
-                        ? "cursor-not-allowed opacity-60"
-                        : isSelected
-                          ? "ring-primary border-primary ring-2"
-                          : "hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="relative mb-2 aspect-square">
-                      <Image
-                        src={preset.preview}
-                        alt={preset.name}
-                        fill
-                        className="rounded-md object-cover"
-                      />
+                  return (
+                    <div
+                      key={preset.id}
+                      onClick={() => {
+                        if (!isPresetDisabled) {
+                          onSelect(preset.id);
+                          setSelectedCategory(null);
+                        }
+                      }}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                        isPresetDisabled
+                          ? "cursor-not-allowed opacity-60"
+                          : isSelected
+                            ? "ring-primary border-primary ring-2"
+                            : "hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="relative mb-2 aspect-square">
+                        <Image
+                          src={preset.preview}
+                          alt={preset.name}
+                          fill
+                          className="rounded-md object-cover"
+                        />
+                      </div>
+                      <h3 className="font-medium">{preset.name}</h3>
+                      <p className="text-muted-foreground text-sm">
+                        {preset.description}
+                      </p>
                     </div>
-                    <h3 className="font-medium">{preset.name}</h3>
-                    <p className="text-muted-foreground text-sm">
-                      {preset.description}
-                    </p>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
 
             <div className="flex justify-end">
