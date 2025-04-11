@@ -82,6 +82,8 @@ export async function POST(req: Request) {
   // Streaming body set-up
   const stream = new ReadableStream({
     async start(controller) {
+      const encoder = new TextEncoder();
+
       try {
         // Validate API, check credits (if not retry)
         if (!isRetry) {
@@ -93,18 +95,24 @@ export async function POST(req: Request) {
             .single();
           if (keyError || !keyData) {
             controller.enqueue(
-              JSON.stringify({
-                done: true,
-                error: keyError?.message || "Invalid API key or inactive key",
-              }) + "\n",
+              encoder.encode(
+                JSON.stringify({
+                  done: true,
+                  error: keyError?.message || "Invalid API key or inactive key",
+                }) + "\n",
+              ),
             );
             controller.close();
             return;
           }
           if (keyData.credits < 1) {
             controller.enqueue(
-              JSON.stringify({ done: true, error: "Insufficient credits" }) +
-                "\n",
+              encoder.encode(
+                JSON.stringify({
+                  done: true,
+                  error: "Insufficient credits",
+                }) + "\n",
+              ),
             );
             controller.close();
             return;
@@ -117,10 +125,12 @@ export async function POST(req: Request) {
             .eq("key", apiKey);
           if (updateError) {
             controller.enqueue(
-              JSON.stringify({
-                done: true,
-                error: "Failed to deduct credits",
-              }) + "\n",
+              encoder.encode(
+                JSON.stringify({
+                  done: true,
+                  error: "Failed to deduct credits",
+                }) + "\n",
+              ),
             );
             controller.close();
             return;
@@ -171,7 +181,9 @@ export async function POST(req: Request) {
           // Stream each chunk.plain delta/content as it arrives
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
-            controller.enqueue(JSON.stringify({ done: false, content }) + "\n");
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ done: false, content }) + "\n"),
+            );
             finalText += content;
           }
         }
@@ -191,13 +203,15 @@ export async function POST(req: Request) {
         }
 
         controller.enqueue(
-          JSON.stringify({
-            done: true,
-            imageUrl: imageUrl || null,
-            remainingCredits,
-            isRetry,
-            isNewCycle,
-          }) + "\n",
+          encoder.encode(
+            JSON.stringify({
+              done: true,
+              imageUrl: imageUrl || null,
+              remainingCredits,
+              isRetry,
+              isNewCycle,
+            }) + "\n",
+          ),
         );
         controller.close();
       } catch (err: unknown) {
@@ -210,10 +224,12 @@ export async function POST(req: Request) {
           remainingCredits = remainingCredits! + 1;
         }
         controller.enqueue(
-          JSON.stringify({
-            done: true,
-            error: err || "Image generation failed",
-          }) + "\n",
+          encoder.encode(
+            JSON.stringify({
+              done: true,
+              error: err || "Image generation failed",
+            }) + "\n",
+          ),
         );
         controller.close();
       }
