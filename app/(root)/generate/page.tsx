@@ -1,8 +1,8 @@
 // app/generate/page.tsx
 "use client";
 
-import { useState } from "react";
-import { STYLE_CATEGORIES } from "@/lib/constants";
+"use client";
+import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,231 +18,34 @@ import { ImageComparisonSlider } from "@/components/ImageComparisonSlider";
 import { ImagePreview } from "@/components/ImagePreview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface GeneratedImage {
-  url: string;
-  presetId: string;
-  presetName: string;
-  timestamp: number;
-}
-
 export default function GeneratePage() {
-  const [apiKey, setApiKey] = useState("");
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
-  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
-  const [elapsed, setElapsed] = useState<number>(0);
-  const [requestTimes, setRequestTimes] = useState<number[]>([]);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
-  const [retryCount, setRetryCount] = useState<number>(0);
-  const [isNewCycleStarting, setIsNewCycleStarting] = useState(false);
-
-  const handleFileSelect = async (file: File) => {
-    setRetryCount(0);
-    setError("");
-    setGeneratedImages([]);
-    setCurrentImageIndex(0);
-
-    if (file.type === "image/heic" || file.type === "image/heif") {
-      try {
-        const heic2any = (await import("heic2any")).default;
-        const result = await heic2any({
-          blob: file,
-          toType: "image/jpeg",
-          quality: 0.95,
-        });
-        // result can be Blob or Blob[]
-        const outputBlob = Array.isArray(result) ? result[0] : result;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setImageBase64(event.target?.result as string);
-        };
-        reader.readAsDataURL(outputBlob);
-        return;
-      } catch (e) {
-        setError("HEIC/HEIF 转换失败，请尝试其他图片格式！");
-        console.error(e);
-        return;
-      }
-    } else {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImageBase64(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const getSelectedPresetName = (presetId: string) => {
-    for (const category of STYLE_CATEGORIES) {
-      const preset = category.presets.find((p) => p.id === presetId);
-      if (preset) return preset.name;
-    }
-    return "未知风格";
-  };
-
-  const handleGenerate = async () => {
-    if (!imageBase64 || !selectedPreset) return;
-
-    if (!apiKey) {
-      setError("请输入使用密钥后再生成图片");
-      return;
-    }
-
-    const isCurrentActionARetry = generatedImages.length > 0 && retryCount < 2;
-
-    if (!isCurrentActionARetry && generatedImages.length > 0) {
-      setIsNewCycleStarting(true);
-      return; // Stop here and wait for confirmation
-    }
-
-    // Continue with generation
-    await startGeneration(isCurrentActionARetry);
-  };
-
-  const startGeneration = async (isRetry: boolean) => {
-    setIsDownloading(false);
-    setIsLoading(true);
-    setElapsed(0);
-    setError("");
-    setIsNewCycleStarting(false);
-
-    const start = Date.now();
-    const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 100);
-
-    try {
-      // Extract the base64 part from the data URL
-      const base64Data = imageBase64!.split(",")[1];
-
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          apiKey,
-          image: base64Data,
-          presetId: selectedPreset,
-          isRetry,
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMsg = "生成失败，请重试";
-        try {
-          const errorData = await response.json();
-          errorMsg =
-            errorData.error ||
-            (errorData.details
-              ? `${errorData.error}: ${errorData.details}`
-              : errorMsg);
-          // Specific handling for insufficient credits
-          if (response.status === 402) {
-            errorMsg = "次数不足，请购买更多次数";
-          } else if (response.status === 401) {
-            errorMsg = "无效或未激活的密钥";
-          }
-        } catch (parseError) {
-          // If parsing fails, use the status text or default message
-          errorMsg = response.statusText || errorMsg;
-          console.error(parseError);
-        }
-        throw new Error(errorMsg); // Throw the detailed error
-      }
-
-      const result = await response.json();
-
-      // Add new image to the collection
-      const newImage: GeneratedImage = {
-        url: result.imageUrl,
-        presetId: selectedPreset!,
-        presetName: getSelectedPresetName(selectedPreset!),
-        timestamp: Date.now(),
-      };
-
-      setGeneratedImages((prev) => [...prev, newImage]);
-      setCurrentImageIndex(generatedImages.length); // Set to the newly added image
-
-      const duration = Date.now() - start;
-      setRequestTimes((prev) => [...prev, duration]);
-
-      if (isRetry) {
-        // We just completed a successful retry attempt
-        setRetryCount((prev) => prev + 1);
-      } else {
-        // This was the FIRST generation attempt for this image combination.
-        // Reset the count for potential retries within this cycle.
-        setRetryCount(0);
-      }
-
-      if (result.remainingCredits !== undefined) {
-        setRemainingCredits(result.remainingCredits);
-      }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      clearInterval(timer);
-      setIsLoading(false);
-      setElapsed(0);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (
-      generatedImages.length === 0 ||
-      currentImageIndex >= generatedImages.length
-    )
-      return;
-
-    const imageToDownload = generatedImages[currentImageIndex].url;
-    setIsDownloading(true);
-    setError("");
-
-    try {
-      const response = await fetch(imageToDownload);
-      if (!response.ok) throw new Error("下载失败");
-
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      // Create and trigger download
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `wantujiang-${Date.now()}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
-    } catch (error) {
-      setError("下载失败，请重试");
-      console.error("Download error:", error);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const navigateImages = (direction: "prev" | "next") => {
-    if (generatedImages.length <= 1) return;
-
-    if (direction === "prev") {
-      setCurrentImageIndex((prev) =>
-        prev > 0 ? prev - 1 : generatedImages.length - 1,
-      );
-    } else {
-      setCurrentImageIndex((prev) =>
-        prev < generatedImages.length - 1 ? prev + 1 : 0,
-      );
-    }
-  };
+  const {
+    apiKey,
+    setApiKey,
+    imageBase64,
+    setImageBase64,
+    selectedPreset,
+    setSelectedPreset,
+    generatedImages,
+    setGeneratedImages,
+    currentImageIndex,
+    setCurrentImageIndex,
+    elapsed,
+    requestTimes,
+    error,
+    isLoading,
+    isDownloading,
+    remainingCredits,
+    retryCount,
+    isNewCycleStarting,
+    handleFileSelect,
+    handleGenerate,
+    handleDownload,
+    navigateImages,
+    getSelectedPresetName,
+    setIsNewCycleStarting,
+    setRetryCount,
+  } = useImageGeneration();
 
   // Show current results or upload
   const showResults = generatedImages.length > 0;
@@ -265,7 +68,7 @@ export default function GeneratePage() {
           <div className="bg-background w-full max-w-md rounded-lg p-6">
             <h3 className="text-lg font-semibold">开始新的绘画过程</h3>
             <p className="mt-2">
-              您将开始一个新的绘画过程，这将消耗一次生成次数。确定要继续吗？
+              您将开始一个新的绘画过程，这将消耗一次次数。确定要继续吗？
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <Button
@@ -295,7 +98,10 @@ export default function GeneratePage() {
             <h2 className="mb-6 text-xl font-medium">图片处理区</h2>
 
             {!imageBase64 ? (
-              <ImageUploader onFileSelect={handleFileSelect} />
+              <ImageUploader
+                onFileSelect={handleFileSelect}
+                disabled={isLoading}
+              />
             ) : showResults ? (
               <div className="h-[600px] w-full">
                 <ImageComparisonSlider
@@ -427,7 +233,7 @@ export default function GeneratePage() {
             <h2 className="mb-4 text-xl font-medium">选择风格</h2>
             <StylePresets
               onSelect={setSelectedPreset}
-              disabled={cycleLocked}
+              disabled={cycleLocked || isLoading}
               currentPreset={selectedPreset}
             />
 

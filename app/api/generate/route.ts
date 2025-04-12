@@ -3,297 +3,298 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { ChatCompletionContentPart } from "openai/resources/chat/completions";
+import { detectImageType } from "@/lib/image";
+import { LEVEL, logApiEvent } from "@/lib/logger";
+import { analyzeApiResult, ProviderResponse } from "@/lib/api-provider";
 
 export const runtime = "edge";
 
-// interface FormattedResponse {
-//   id: string;
-//   model: string;
-//   status: "success" | "queued" | "generating" | "failed";
-//   tokens: {
-//     prompt: number;
-//     completion: number;
-//     total: number;
-//     details: {
-//       prompt: { text: number };
-//       completion: { content: number };
-//     };
-//   };
-//   prompt?: {
-//     text: string;
-//     ratio: string;
-//   };
-//   generation?: {
-//     id?: string;
-//     imageUrl?: string;
-//     progress?: number[];
-//   };
-//   moderation?: {
-//     rejected: boolean;
-//     reason?: string;
-//     suggestion?: string;
-//     taskId?: string;
-//   };
-//   rawContent: string;
-//   createdAt: Date;
-// }
-
-function detectImageType(base64: string): string {
-  if (base64.startsWith("/9j/")) return "jpeg"; // JPEG
-  if (base64.startsWith("iVBOR")) return "png"; // PNG
-  if (base64.startsWith("UklGR")) return "webp"; // WebP
-  if (base64.startsWith("SUkqA") || base64.startsWith("AAABAA")) return "tiff"; // TIFF (less common)
-  // HEIC/HEIF signatures (first 4 bytes are ftyp, followed by 'heic'/'heix'/'hevc'/'hevx'..., encoded in base64)
-  // Example for HEIC: 00000018 66747970 68656963 (in base64: "AAAAAWZ0eXBoZWlj")
-  if (base64.slice(4, 16).includes("ZnR5cG")) {
-    // check for 'ftyp'
-    const brand = atob(base64).slice(8, 12);
-    if (
-      brand === "heic" ||
-      brand === "heix" ||
-      brand === "hevc" ||
-      brand === "hevx" ||
-      brand === "mif1" ||
-      brand === "msf1"
-    ) {
-      return "heic";
-    }
-  }
-  // fallback
-  return "jpeg";
-}
-
 export async function POST(req: Request) {
-  // console.log("Received request to generate image");
   const { apiKey, presetId, image, isRetry = false } = await req.json();
+  logApiEvent("api_generate_request", LEVEL.INFO, {
+    apiKey: apiKey ? "***" : "",
+    presetId,
+    isRetry,
+  });
+
   try {
     if (!apiKey || !presetId || !image) {
+      logApiEvent("api_generate_missing_params", LEVEL.ERROR, {
+        apiKey: !!apiKey,
+        presetId: !!presetId,
+        image: !!image,
+      });
       return NextResponse.json(
-        { error: "Missing parameters" },
+        { error: "参数缺失，请检查密钥、风格和图片是否填写完整。" },
         { status: 400 },
       );
     }
 
-    let remainingCredits;
+    let remainingCredits: number | undefined = undefined;
     let isNewCycle = false;
 
-    // Validate API key and check credits (only if not a retry)
-    if (!isRetry) {
-      const { data: keyData, error: keyError } = await supabaseAdmin
-        .from("api_keys")
-        .select("credits")
-        .eq("key", apiKey)
-        .eq("status", "active")
-        .single();
+    // --- Validate and Deduct Credits ---
+    try {
+      const result = await validateAndDeductCredits(apiKey, isRetry);
+      remainingCredits = result.remainingCredits;
+      isNewCycle = result.isNewCycle;
+    } catch (creditError) {
+      const msg =
+        typeof creditError === "object" &&
+        creditError !== null &&
+        "message" in creditError
+          ? String((creditError as Error).message)
+          : String(creditError);
 
-      // console.log("Query results:", { keyData, keyError });
-      if (keyError) {
-        console.error("Supabase error:", keyError);
+      if (msg.startsWith("db_error:")) {
+        logApiEvent("api_generate_db_error", LEVEL.ERROR, { error: msg });
         return NextResponse.json(
-          {
-            error: "Database error",
-            details: keyError.message,
-          },
+          { error: "验证密钥错误，请稍后重试。", details: msg },
           { status: 500 },
         );
       }
-
-      if (!keyData) {
+      if (msg === "invalid_key") {
+        logApiEvent("api_generate_invalid_key", LEVEL.ERROR, { apiKey: "***" });
         return NextResponse.json(
-          {
-            error: "Invalid API key or inactive key",
-            details: `No active key found matching: ${apiKey}`,
-          },
+          { error: "无效或未激活的密钥", details: "未找到有效密钥" },
           { status: 401 },
         );
       }
-
-      if (keyData.credits < 1) {
+      if (msg === "no_credits") {
+        logApiEvent("api_generate_no_credits", LEVEL.WARN, { apiKey: "***" });
         return NextResponse.json(
-          { error: "Insufficient credits" },
+          { error: "次数不足，请购买更多次数" },
           { status: 402 },
         );
       }
-
-      // Deduct credits - Don't deduct on retries
-      isNewCycle = true;
-      const { error: updateError } = await supabaseAdmin
-        .from("api_keys")
-        .update({ credits: keyData.credits - 1 })
-        .eq("key", apiKey);
-
-      if (updateError) {
+      if (msg.startsWith("deduct_failed:")) {
+        logApiEvent("api_generate_credit_deduct_failed", LEVEL.ERROR, {
+          error: msg,
+        });
         return NextResponse.json(
-          { error: "Failed to deduct credits" },
+          { error: "扣费失败，请稍后重试。" },
           { status: 500 },
         );
       }
-
-      // Return remaining credits
-      remainingCredits = keyData.credits - 1;
+      // fallback
+      logApiEvent("api_generate_credit_unknown_error", LEVEL.ERROR, {
+        error: msg,
+      });
+      return NextResponse.json(
+        { error: "余额查询失败，请稍后重试。" },
+        { status: 500 },
+      );
     }
 
-    // Continue with image generation
+    // --- Prepare Prompt ---
     const imageType = detectImageType(image);
-
     const prompt = STYLE_CATEGORIES.flatMap(
       (category) => category.presets,
     ).find((p) => p.id === presetId)?.prompt;
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_API_BASE_URL,
-    });
+    if (!prompt) {
+      logApiEvent("api_generate_invalid_preset", LEVEL.ERROR, { presetId });
+      return NextResponse.json(
+        { error: "风格预设无效，请重新选择。" },
+        { status: 400 },
+      );
+    }
 
+    // --- OpenAI Call ---
+    let normalizedResponse: ProviderResponse;
     try {
-      const messageContent: ChatCompletionContentPart[] = [
-        {
-          type: "image_url",
-          image_url: { url: `data:image/${imageType};base64,${image}` },
-        },
-        {
-          type: "text",
-          // prompt is now guaranteed to be a string here
-          text: prompt as string,
-        },
-      ];
-
-      // This error occurs the proxy do not follow openai api standard
-      const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL as string,
-        messages: [
-          {
-            role: "user",
-            content: messageContent,
-          },
-        ],
+      normalizedResponse = await generateImageWithOpenAI(
+        image,
+        imageType,
+        prompt,
+      );
+    } catch (openaiError) {
+      logApiEvent("api_generate_provider_error", LEVEL.ERROR, {
+        error: String(openaiError),
       });
 
-      const content = response.choices[0]?.message?.content || "";
-      const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
-      const imageUrl = imageUrlMatch?.[1];
-
-      // console.log("\n=== IMAGE URL ===");
-      // console.log(imageUrl || "No image URL found in response");
-
-      if (!imageUrl) {
-        // If API request failed as there's no image URL, revert credit deduction
-        if (isNewCycle) {
-          await supabaseAdmin
-            .from("api_keys")
-            .update({ credits: remainingCredits! + 1 })
-            .eq("key", apiKey);
-          remainingCredits = remainingCredits! + 1;
-        }
-
-        return NextResponse.json(
-          { success: false, error: "Image generation failed" },
-          { status: 500 },
-        );
+      // Refund credits if needed
+      if (isNewCycle && remainingCredits !== undefined) {
+        await refundCredits(apiKey, remainingCredits);
       }
-
-      return NextResponse.json({
-        success: true,
-        tokens: response.usage,
-        imageUrl,
-        remainingCredits,
-        isRetry,
-        isNewCycle,
-      });
-    } catch (apiError: unknown) {
-      console.error("OpenAI API error:", apiError);
-
-      // If API request failed, revert credit deduction
-      if (isNewCycle) {
-        await supabaseAdmin
-          .from("api_keys")
-          .update({ credits: remainingCredits! + 1 })
-          .eq("key", apiKey);
-        remainingCredits = remainingCredits! + 1;
-      }
-
-      const errorMessage =
-        apiError instanceof Error ? apiError.message : "API request failed";
 
       return NextResponse.json(
-        { success: false, error: errorMessage },
+        { success: false, error: "服务器繁忙，请稍后重试或更换风格。" },
         { status: 500 },
       );
     }
+
+    // --- Analyze Result ---
+    const analysis = analyzeApiResult(normalizedResponse);
+
+    if (process.env.NODE_ENV === "development")
+      console.log(
+        "Full provider response: ",
+        normalizedResponse,
+        "\n",
+        "Analysis:",
+        analysis,
+      );
+
+    if (!analysis.success) {
+      if (isNewCycle && remainingCredits !== undefined)
+        await refundCredits(apiKey, remainingCredits);
+      logApiEvent("api_generate_failure", LEVEL.ERROR, {
+        presetId,
+        apiKey: "***",
+        error: analysis.error,
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: analysis.error || "获取图片结果失败，请稍后重试。",
+        },
+        { status: 500 },
+      );
+    }
+
+    logApiEvent("api_generate_success", LEVEL.INFO, {
+      presetId,
+      apiKey: "***",
+      isRetry,
+      isNewCycle,
+      imageUrl: analysis.imageUrl,
+      "tokens.prompt_tokens": analysis.tokens.prompt_tokens,
+      "tokens.completion_tokens": analysis.tokens.completion_tokens,
+      "tokens.total_tokens": analysis.tokens.total_tokens,
+      ...(analysis.tokens.prompt_tokens_details && {
+        "tokens.prompt_tokens_details": JSON.stringify(
+          analysis.tokens.prompt_tokens_details,
+        ),
+      }),
+      ...(analysis.tokens.completion_tokens_details && {
+        "tokens.completion_tokens_details": JSON.stringify(
+          analysis.tokens.completion_tokens_details,
+        ),
+      }),
+    });
+
+    return NextResponse.json({
+      success: true,
+      tokens: analysis.tokens,
+      imageUrl: analysis.imageUrl,
+      downloadUrl: analysis.downloadUrl,
+      prompt: analysis.prompt,
+      remainingCredits,
+      isRetry,
+      isNewCycle,
+    });
   } catch (err: unknown) {
-    console.error("Generation failed:", err);
-    const errorMessage =
-      err instanceof Error ? err.message : "Image generation failed";
+    logApiEvent("api_generate_internal_error", LEVEL.ERROR, {
+      error: String(err),
+    });
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { success: false, error: "内部错误，请稍后重试。" },
       { status: 500 },
     );
   }
 }
 
-// function formatTuZiResponse(response: any): FormattedResponse {
-//   // Extract basic info
-//   const base = {
-//     id: response.id,
-//     model: response.model,
-//     tokens: {
-//       prompt: response.usage?.prompt_tokens,
-//       completion: response.usage?.completion_tokens,
-//       total: response.usage?.total_tokens,
-//       details: {
-//         prompt: response.usage?.prompt_tokens_details,
-//         completion: response.usage?.completion_tokens_details,
-//       },
-//     },
-//     rawContent: response.choices?.[0]?.message?.content,
-//     createdAt: new Date(response.created * 1000),
-//   };
+// --- Helpers ---
 
-//   // Parse the raw content
-//   const content = response.choices?.[0]?.message?.content;
-//   const promptMatch = content.match(/```(json\n)?({[^]+?})```/);
-//   const promptData = promptMatch ? JSON.parse(promptMatch[2]) : null;
+async function validateAndDeductCredits(apiKey: string, isRetry: boolean) {
+  if (isRetry) return { remainingCredits: undefined, isNewCycle: false };
 
-//   // Check for moderation failure
-//   const isRejected = content.includes('is_output_rejection":true');
-//   const failureMatch = content.match(
-//     /Failure reason：(.+?)\n> \*\*Reason\*\*: (.+?)\n> \*\*Suggestion\*\*: (.+?)\n/,
-//   );
-//   const taskIdMatch = content.match(/task_id":"(.+?)"/);
+  const { data: keyData, error: keyError } = await supabaseAdmin
+    .from("api_keys")
+    .select("credits")
+    .eq("key", apiKey)
+    .eq("status", "active")
+    .single();
 
-//   // Extract generation progress if available
-//   const progressMatches = [...content.matchAll(/Progress (\d+)%/g)];
-//   const progress = progressMatches.map((m) => parseInt(m[1]));
+  if (keyError) throw new Error("db_error:" + keyError.message);
+  if (!keyData) throw new Error("invalid_key");
+  if (keyData.credits < 1) throw new Error("no_credits");
 
-//   // Extract image URL if successful
-//   const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s]+)\)/);
-//   const genIdMatch = content.match(/gen_id: `(.+?)`/);
+  const { error: updateError } = await supabaseAdmin
+    .from("api_keys")
+    .update({ credits: keyData.credits - 1 })
+    .eq("key", apiKey);
 
-//   if (isRejected) {
-//     return {
-//       ...base,
-//       status: "failed",
-//       moderation: {
-//         rejected: true,
-//         reason: failureMatch?.[2],
-//         suggestion: failureMatch?.[3],
-//         taskId: taskIdMatch?.[1],
-//       },
-//       prompt: promptData,
-//     };
-//   }
-//   return {
-//     ...base,
-//     status: imageUrlMatch
-//       ? "success"
-//       : progress.length
-//         ? "generating"
-//         : "queued",
-//     prompt: promptData,
-//     generation: {
-//       id: genIdMatch?.[1],
-//       imageUrl: imageUrlMatch?.[1],
-//       progress: progress.length ? progress : undefined,
-//     },
-//   };
-// }
+  if (updateError) throw new Error("deduct_failed:" + updateError.message);
+
+  return { remainingCredits: keyData.credits - 1, isNewCycle: true };
+}
+
+async function generateImageWithOpenAI(
+  image: string,
+  imageType: string,
+  prompt: string,
+): Promise<ProviderResponse> {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: process.env.OPENAI_API_BASE_URL,
+  });
+
+  const messageContent: ChatCompletionContentPart[] = [
+    {
+      type: "image_url",
+      image_url: { url: `data:image/${imageType};base64,${image}` },
+    },
+    { type: "text", text: prompt },
+  ];
+
+  const providerResponse = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL as string,
+    messages: [{ role: "user", content: messageContent }],
+  });
+
+  const usage = providerResponse.usage ?? {
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    total_tokens: 0,
+  };
+
+  return {
+    id: providerResponse.id,
+    object: providerResponse.object,
+    created: providerResponse.created,
+    model: providerResponse.model,
+    choices: providerResponse.choices.map((choice) => ({
+      index: choice.index,
+      message: {
+        role: choice.message.role,
+        content: choice.message.content ?? "",
+      },
+      finish_reason: choice.finish_reason ?? "",
+    })),
+    usage: {
+      prompt_tokens: usage.prompt_tokens,
+      completion_tokens: usage.completion_tokens,
+      total_tokens: usage.total_tokens,
+      prompt_tokens_details: getTokensDetails(usage, "prompt_tokens_details"),
+      completion_tokens_details: getTokensDetails(
+        usage,
+        "completion_tokens_details",
+      ),
+    },
+  };
+}
+
+async function refundCredits(apiKey: string, remainingCredits: number) {
+  await supabaseAdmin
+    .from("api_keys")
+    .update({ credits: remainingCredits + 1 })
+    .eq("key", apiKey);
+}
+
+function getTokensDetails(
+  obj: unknown,
+  key: string,
+): Record<string, number> | undefined {
+  if (obj && typeof obj === "object" && key in obj) {
+    const val = (obj as Record<string, unknown>)[key];
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      // Check all values are numbers
+      if (Object.values(val).every((v) => typeof v === "number")) {
+        return val as Record<string, number>;
+      }
+    }
+  }
+  return undefined;
+}

@@ -6,8 +6,10 @@ import { Upload } from "lucide-react";
 
 export function ImageUploader({
   onFileSelect,
+  disabled,
 }: {
   onFileSelect: (file: File) => void;
+  disabled: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +72,7 @@ export function ImageUploader({
         className="hidden"
         onChange={handleFileInput}
         accept="image/*"
+        disabled={disabled}
       />
       <div className="flex flex-col items-center justify-center space-y-3 p-5 text-center">
         <Upload className="h-10 w-10 text-gray-400" />
