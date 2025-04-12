@@ -187,11 +187,7 @@ export function useImageGeneration() {
         duration,
       });
     } catch (err) {
-      if (err instanceof TypeError) {
-        setError("网络连接失败，请检查您的网络后重试");
-      } else {
-        setError((err as Error).message);
-      }
+      setError((err as Error).message);
     } finally {
       if (timerRef.current) clearInterval(timerRef.current);
       setIsLoading(false);
@@ -231,11 +227,8 @@ export function useImageGeneration() {
         url: imageToDownload,
       });
     } catch (error) {
-      if (error instanceof TypeError) {
-        setError("网络连接失败，请检查您的网络后重试");
-      } else {
-        setError("下载失败，请重试");
-      }
+      setError("下载失败，请重试");
+
       logFrontendEvent("image_download_failed", LEVEL.ERROR, {
         error: String(error),
       });
