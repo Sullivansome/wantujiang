@@ -9,6 +9,10 @@ import { analyzeApiResult, ProviderResponse } from "@/lib/api-provider";
 
 export const runtime = "edge";
 
+const FAILURE_THRESHOLD = 2;
+const BLOCK_MINUTES = 10;
+let consecutive_failures = 0;
+
 export async function POST(req: Request) {
   const { apiKey, presetId, image, isRetry = false } = await req.json();
   logApiEvent("api_generate_request", LEVEL.INFO, {
@@ -36,6 +40,7 @@ export async function POST(req: Request) {
     // --- Validate and Deduct Credits ---
     try {
       const result = await validateAndDeductCredits(apiKey, isRetry);
+      consecutive_failures = result.consecutive_failures;
       remainingCredits = result.remainingCredits;
       isNewCycle = result.isNewCycle;
     } catch (creditError) {
@@ -58,6 +63,20 @@ export async function POST(req: Request) {
         return NextResponse.json(
           { error: "无效或未激活的密钥", details: "未找到有效密钥" },
           { status: 401 },
+        );
+      }
+      if (msg === "key_revoked") {
+        return NextResponse.json({ error: "密钥已被禁用" }, { status: 401 });
+      }
+      if (msg.startsWith("blocked_until:")) {
+        const blocked_until = msg.split(":")[1];
+        logApiEvent("api_generate_blocked", LEVEL.WARN, {
+          apiKey: "***",
+          blocked_until,
+        });
+        return NextResponse.json(
+          { error: "服务繁忙，请稍后再试。" },
+          { status: 429 },
         );
       }
       if (msg === "no_credits") {
@@ -118,6 +137,8 @@ export async function POST(req: Request) {
         await refundCredits(apiKey, remainingCredits);
       }
 
+      await handleProviderFailure(apiKey, consecutive_failures);
+
       return NextResponse.json(
         { success: false, error: "服务器繁忙，请稍后重试或更换风格。" },
         { status: 500 },
@@ -139,6 +160,9 @@ export async function POST(req: Request) {
     if (!analysis.success) {
       if (isNewCycle && remainingCredits !== undefined)
         await refundCredits(apiKey, remainingCredits);
+
+      await handleProviderFailure(apiKey, consecutive_failures);
+
       logApiEvent("api_generate_failure", LEVEL.ERROR, {
         presetId,
         apiKey: "***",
@@ -174,6 +198,12 @@ export async function POST(req: Request) {
       }),
     });
 
+    await supabaseAdmin.rpc("increment_total_used", { key_value: apiKey });
+    await supabaseAdmin
+      .from("api_keys")
+      .update({ consecutive_failures: 0, blocked_until: null })
+      .eq("key", apiKey);
+
     return NextResponse.json({
       success: true,
       tokens: analysis.tokens,
@@ -198,17 +228,24 @@ export async function POST(req: Request) {
 // --- Helpers ---
 
 async function validateAndDeductCredits(apiKey: string, isRetry: boolean) {
-  if (isRetry) return { remainingCredits: undefined, isNewCycle: false };
-
   const { data: keyData, error: keyError } = await supabaseAdmin
     .from("api_keys")
-    .select("credits")
+    .select("consecutive_failures, blocked_until, credits, status")
     .eq("key", apiKey)
-    .eq("status", "active")
     .single();
 
   if (keyError) throw new Error("db_error:" + keyError.message);
+
   if (!keyData) throw new Error("invalid_key");
+
+  if (keyData.status !== "active") throw new Error("key_revoked");
+
+  if (keyData.blocked_until && new Date(keyData.blocked_until) > new Date()) {
+    throw new Error("blocked_until:" + keyData.blocked_until);
+  }
+
+  if (isRetry) return { remainingCredits: keyData.credits, isNewCycle: false };
+
   if (keyData.credits < 1) throw new Error("no_credits");
 
   const { error: updateError } = await supabaseAdmin
@@ -218,7 +255,29 @@ async function validateAndDeductCredits(apiKey: string, isRetry: boolean) {
 
   if (updateError) throw new Error("deduct_failed:" + updateError.message);
 
-  return { remainingCredits: keyData.credits - 1, isNewCycle: true };
+  return {
+    remainingCredits: keyData.credits - 1,
+    isNewCycle: true,
+    consecutive_failures: keyData.consecutive_failures ?? 0,
+  };
+}
+
+async function handleProviderFailure(
+  apiKey: string,
+  currentFailures: number | undefined | null,
+) {
+  const newFailures = (currentFailures ?? 0) + 1;
+  const updates: Record<string, unknown> = {
+    consecutive_failures: newFailures,
+  };
+
+  if (newFailures >= FAILURE_THRESHOLD) {
+    updates.blocked_until = new Date(
+      Date.now() + BLOCK_MINUTES * 60 * 1000,
+    ).toISOString();
+  }
+
+  await supabaseAdmin.from("api_keys").update(updates).eq("key", apiKey);
 }
 
 async function generateImageWithOpenAI(
