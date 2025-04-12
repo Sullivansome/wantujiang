@@ -7,8 +7,6 @@ import { detectImageType } from "@/lib/image";
 import { LEVEL, logApiEvent } from "@/lib/logger";
 import { analyzeApiResult, ProviderResponse } from "@/lib/api-provider";
 
-export const runtime = "edge";
-
 const FAILURE_THRESHOLD = 2;
 const BLOCK_MINUTES = 10;
 let consecutive_failures = 0;
