@@ -1,7 +1,5 @@
-// app/generate/page.tsx
 "use client";
 
-"use client";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +35,8 @@ export default function GeneratePage() {
     isDownloading,
     remainingCredits,
     retryCount,
+    maxRetries,
+    cycleId,
     isNewCycleStarting,
     handleFileSelect,
     handleGenerate,
@@ -45,6 +45,7 @@ export default function GeneratePage() {
     getSelectedPresetName,
     setIsNewCycleStarting,
     setRetryCount,
+    setCycleId,
   } = useImageGeneration();
 
   // Show current results or upload
@@ -52,7 +53,10 @@ export default function GeneratePage() {
   const currentImage = showResults ? generatedImages[currentImageIndex] : null;
   const cycleLocked =
     isLoading ||
-    (selectedPreset !== null && generatedImages.length > 0 && retryCount < 2);
+    (selectedPreset !== null &&
+      generatedImages.length > 0 &&
+      Boolean(cycleId) &&
+      retryCount < maxRetries);
 
   return (
     <div className="mx-auto min-h-screen w-full py-8">
@@ -82,6 +86,7 @@ export default function GeneratePage() {
                   // Clear the selected preset but keep the image and results
                   setSelectedPreset(null);
                   setRetryCount(0);
+                  setCycleId(null);
                   setIsNewCycleStarting(false);
                 }}
               >
@@ -147,6 +152,8 @@ export default function GeneratePage() {
                       setGeneratedImages([]);
                       setCurrentImageIndex(0);
                       setImageBase64(null);
+                      setRetryCount(0);
+                      setCycleId(null);
                     }}
                   >
                     换张图片
@@ -171,6 +178,10 @@ export default function GeneratePage() {
                 src={imageBase64}
                 onReset={() => {
                   setImageBase64(null);
+                  setGeneratedImages([]);
+                  setCurrentImageIndex(0);
+                  setRetryCount(0);
+                  setCycleId(null);
                 }}
               />
             )}
@@ -263,8 +274,10 @@ export default function GeneratePage() {
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   生成中... ({elapsed}s)
                 </>
-              ) : generatedImages.length > 0 && retryCount < 2 ? (
-                <>重试（免费，剩余{2 - retryCount}次）</>
+              ) : generatedImages.length > 0 &&
+                cycleId &&
+                retryCount < maxRetries ? (
+                <>重试（免费，剩余{maxRetries - retryCount}次）</>
               ) : generatedImages.length > 0 ? (
                 <>开始新周期（将扣费）</>
               ) : (
@@ -281,7 +294,7 @@ export default function GeneratePage() {
               </div>
             )}
 
-            {retryCount >= 2 && (
+            {cycleId && retryCount >= maxRetries && (
               <p className="text-muted-foreground mt-2 text-sm">
                 免费重试次数已用完，可以开始新周期
               </p>

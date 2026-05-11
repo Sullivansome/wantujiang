@@ -3,6 +3,7 @@
 
 import { useState, useRef } from "react";
 import { Upload } from "lucide-react";
+import { toast } from "sonner";
 
 export function ImageUploader({
   onFileSelect,
@@ -41,13 +42,13 @@ export function ImageUploader({
   const handleFile = (file: File) => {
     // Check if the file is an image and not too large
     if (!file.type.startsWith("image/")) {
-      alert("请上传图片文件");
+      toast.error("请上传图片文件");
       return;
     }
 
     // Optionally check file size (e.g., 10MB limit)
     if (file.size > 10 * 1024 * 1024) {
-      alert("图片大小不能超过10MB");
+      toast.error("图片大小不能超过10MB");
       return;
     }
 
@@ -55,12 +56,14 @@ export function ImageUploader({
   };
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => fileInputRef.current?.click()}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative flex h-9/10 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all ${
+      disabled={disabled}
+      className={`focus-visible:ring-primary relative flex h-9/10 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
         isDragging
           ? "border-primary bg-primary/5"
           : "hover:border-primary/70 border-gray-300"
@@ -81,6 +84,6 @@ export function ImageUploader({
           支持 JPG, PNG, WebP, HEIC, HEIF 等格式
         </p>
       </div>
-    </div>
+    </button>
   );
 }

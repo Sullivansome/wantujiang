@@ -81,6 +81,18 @@ export default function PricingPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith("image/")) {
+        toast.error("请上传图片文件");
+        e.target.value = "";
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("支付截图不能超过10MB");
+        e.target.value = "";
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         setPreviewImage(reader.result as string);
@@ -125,7 +137,8 @@ export default function PricingPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Submission failed");
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Submission failed");
       }
 
       toast.success("支付信息已提交！我们会尽快核实并为您发送密钥");
@@ -136,8 +149,10 @@ export default function PricingPage() {
       if (paymentProofRef.current) {
         paymentProofRef.current.value = "";
       }
-    } catch {
-      toast.error("提交失败，请稍后再试");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "提交失败，请稍后再试",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -242,6 +257,7 @@ export default function PricingPage() {
                       src={previewImage}
                       alt="Payment proof preview"
                       fill
+                      unoptimized
                       className="object-contain"
                     />
                   </div>

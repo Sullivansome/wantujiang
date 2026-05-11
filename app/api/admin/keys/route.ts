@@ -1,14 +1,58 @@
-import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { generateApiKey } from "@/lib/api-keys";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const apiKeyStatusSchema = z.enum(["active", "revoked"]);
 
-// Helper: get current user and verify is admin
+const createKeySchema = z
+  .object({
+    order_id: z.string().trim().min(1),
+    credits: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const updateKeySchema = z
+  .object({
+    id: z.string().trim().min(1),
+    updates: z
+      .object({
+        credits: z.number().int().nonnegative().optional(),
+        status: apiKeyStatusSchema.optional(),
+      })
+      .strict()
+      .refine((updates) => Object.keys(updates).length > 0, {
+        message: "No allowed update fields provided",
+      }),
+  })
+  .strict();
+
+interface ApiKeyRecord {
+  id: string;
+  order_id: string;
+  key: string;
+  credits: number;
+  status: "active" | "revoked";
+  created_at: string;
+  last_used: string | null;
+  total_used: number | null;
+}
+
+function toApiKeyDto(record: ApiKeyRecord) {
+  return {
+    id: record.id,
+    order_id: record.order_id,
+    key: record.key,
+    credits: record.credits,
+    status: record.status,
+    created_at: record.created_at,
+    last_used: record.last_used,
+    total_used: record.total_used ?? 0,
+  };
+}
+
 async function authorizeAdmin() {
   const headersList = await headers();
   const authHeader = headersList.get("authorization");
@@ -32,6 +76,7 @@ async function authorizeAdmin() {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
+
   if (userError || !user) {
     return {
       user: null,
@@ -39,13 +84,13 @@ async function authorizeAdmin() {
     };
   }
 
-  const { data: profile } = await supabaseAdmin
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
     .select("is_admin")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_admin) {
+  if (profileError || !profile?.is_admin) {
     return {
       user: null,
       error: NextResponse.json(
@@ -65,13 +110,16 @@ export async function GET() {
 
     const { data, error: fetchError } = await supabaseAdmin
       .from("api_keys")
-      .select("*")
+      .select(
+        "id, order_id, key, credits, status, created_at, last_used, total_used",
+      )
       .order("created_at", { ascending: false });
+
     if (fetchError) throw fetchError;
 
-    return NextResponse.json(data || []);
-  } catch (e) {
-    console.error(e);
+    return NextResponse.json((data ?? []).map(toApiKeyDto));
+  } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -84,29 +132,35 @@ export async function POST(req: Request) {
     const { error } = await authorizeAdmin();
     if (error) return error;
 
-    const body = await req.json();
-    const { order_id, credits } = body;
-
-    if (!order_id || !credits ) {
+    const parsed = createKeySchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Invalid request body", issues: parsed.error.flatten() },
         { status: 400 },
       );
     }
 
-    const key = generateApiKey()
+    const key = generateApiKey();
 
     const { data, error: insertError } = await supabaseAdmin
       .from("api_keys")
-      .insert([{ order_id: order_id.toString(), credits, key }])
-      .select()
-      .single();
+      .insert([
+        {
+          order_id: parsed.data.order_id,
+          credits: parsed.data.credits,
+          key,
+        },
+      ])
+      .select(
+        "id, order_id, key, credits, status, created_at, last_used, total_used",
+      )
+      .single<ApiKeyRecord>();
 
     if (insertError) throw insertError;
 
-    return NextResponse.json(data, { status: 201 });
-  } catch (e) {
-    console.error(e);
+    return NextResponse.json(toApiKeyDto(data), { status: 201 });
+  } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -119,27 +173,30 @@ export async function PUT(req: Request) {
     const { error } = await authorizeAdmin();
     if (error) return error;
 
-    const body = await req.json();
-    const { id, updates } = body;
-    if (!id || !updates) {
+    const parsed = updateKeySchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing id or updates" },
+        { error: "Invalid request body", issues: parsed.error.flatten() },
         { status: 400 },
       );
     }
+
+    const { id, updates } = parsed.data;
 
     const { data, error: updateError } = await supabaseAdmin
       .from("api_keys")
       .update(updates)
       .eq("id", id)
-      .select()
-      .single();
+      .select(
+        "id, order_id, key, credits, status, created_at, last_used, total_used",
+      )
+      .single<ApiKeyRecord>();
 
     if (updateError) throw updateError;
 
-    return NextResponse.json(data);
-  } catch (e) {
-    console.error(e);
+    return NextResponse.json(toApiKeyDto(data));
+  } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -7,9 +7,8 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "filesystem.site",
-        // port: "",
-        // pathname: "/account123/**",
-        // search: "",
+        pathname: "/**",
+        search: "",
       },
     ],
   },

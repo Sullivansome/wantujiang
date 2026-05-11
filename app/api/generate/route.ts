@@ -1,185 +1,176 @@
 import { STYLE_CATEGORIES } from "@/lib/constants";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  recordGenerationFailure,
+  recordGenerationSuccess,
+  reservePaidGeneration,
+  reserveRetryGeneration,
+  type GenerationReservation,
+} from "@/lib/db/credit";
+import { detectImageType } from "@/lib/image";
+import { LEVEL, logApiEvent } from "@/lib/logger";
+import {
+  analyzeApiResult,
+  ProviderResponse,
+  ProviderUsage,
+} from "@/lib/api-provider";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { ChatCompletionContentPart } from "openai/resources/chat/completions";
-import { detectImageType } from "@/lib/image";
-import { LEVEL, logApiEvent } from "@/lib/logger";
-import { analyzeApiResult, ProviderResponse } from "@/lib/api-provider";
+import { z } from "zod";
 
-const FAILURE_THRESHOLD = 2;
-const BLOCK_MINUTES = 10;
-let consecutive_failures = 0;
+export const runtime = "nodejs";
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set(["jpeg", "png", "webp", "heic", "tiff"]);
+
+const generateRequestSchema = z.object({
+  apiKey: z.string().trim().min(1),
+  presetId: z.string().trim().min(1),
+  image: z.string().trim().min(1),
+  cycleId: z.string().uuid().optional(),
+});
+
+type GenerateRequest = z.infer<typeof generateRequestSchema>;
+
+interface ValidatedImage {
+  base64: string;
+  imageType: string;
+  imageHash: string;
+}
+
+interface StreamMetadata {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  finishReason: string;
+  usage?: ProviderUsage;
+}
 
 export async function POST(req: Request) {
-  const { apiKey, presetId, image, isRetry = false } = await req.json();
-  logApiEvent("api_generate_request", LEVEL.INFO, {
-    apiKey: apiKey ? "***" : "",
-    presetId,
-    isRetry,
-  });
+  let reservation: GenerationReservation | null = null;
 
   try {
-    if (!apiKey || !presetId || !image) {
-      logApiEvent("api_generate_missing_params", LEVEL.ERROR, {
-        apiKey: !!apiKey,
-        presetId: !!presetId,
-        image: !!image,
-      });
+    const payload = await parseJsonRequest(req);
+    if (!payload.success) {
       return NextResponse.json(
-        { error: "参数缺失，请检查密钥、风格和图片是否填写完整。" },
+        { success: false, error: payload.error },
         { status: 400 },
       );
     }
 
-    let remainingCredits: number | undefined = undefined;
-    let isNewCycle = false;
+    const { apiKey, presetId, image, cycleId } = payload.data;
+    const isRetryRequest = Boolean(cycleId);
 
-    // --- Validate and Deduct Credits ---
-    try {
-      const result = await validateAndDeductCredits(apiKey, isRetry);
-      consecutive_failures = result.consecutive_failures;
-      remainingCredits = result.remainingCredits;
-      isNewCycle = result.isNewCycle;
-    } catch (creditError) {
-      const msg =
-        typeof creditError === "object" &&
-        creditError !== null &&
-        "message" in creditError
-          ? String((creditError as Error).message)
-          : String(creditError);
+    logApiEvent("api_generate_request", LEVEL.INFO, {
+      apiKey: apiKey ? "***" : "",
+      presetId,
+      isRetryRequest,
+    });
 
-      if (msg.startsWith("db_error:")) {
-        logApiEvent("api_generate_db_error", LEVEL.ERROR, { error: msg });
-        return NextResponse.json(
-          { error: "验证密钥错误，请稍后重试。", details: msg },
-          { status: 500 },
-        );
-      }
-      if (msg === "invalid_key") {
-        logApiEvent("api_generate_invalid_key", LEVEL.ERROR, { apiKey: "***" });
-        return NextResponse.json(
-          { error: "无效或未激活的密钥", details: "未找到有效密钥" },
-          { status: 401 },
-        );
-      }
-      if (msg === "key_revoked") {
-        return NextResponse.json({ error: "密钥已被禁用" }, { status: 401 });
-      }
-      if (msg.startsWith("blocked_until:")) {
-        const blocked_until = msg.split(":")[1];
-        logApiEvent("api_generate_blocked", LEVEL.WARN, {
-          apiKey: "***",
-          blocked_until,
-        });
-        return NextResponse.json(
-          { error: "服务繁忙，请稍后再试。" },
-          { status: 429 },
-        );
-      }
-      if (msg === "no_credits") {
-        logApiEvent("api_generate_no_credits", LEVEL.WARN, { apiKey: "***" });
-        return NextResponse.json(
-          { error: "次数不足，请购买更多次数" },
-          { status: 402 },
-        );
-      }
-      if (msg.startsWith("deduct_failed:")) {
-        logApiEvent("api_generate_credit_deduct_failed", LEVEL.ERROR, {
-          error: msg,
-        });
-        return NextResponse.json(
-          { error: "扣费失败，请稍后重试。" },
-          { status: 500 },
-        );
-      }
-      // fallback
-      logApiEvent("api_generate_credit_unknown_error", LEVEL.ERROR, {
-        error: msg,
-      });
+    const validatedImage = await validateImagePayload(image);
+    if (!validatedImage.success) {
       return NextResponse.json(
-        { error: "余额查询失败，请稍后重试。" },
-        { status: 500 },
+        { success: false, error: validatedImage.error },
+        { status: 400 },
       );
     }
 
-    // --- Prepare Prompt ---
-    const imageType = detectImageType(image);
-    const prompt = STYLE_CATEGORIES.flatMap(
-      (category) => category.presets,
-    ).find((p) => p.id === presetId)?.prompt;
-
+    const prompt = getPresetPrompt(presetId);
     if (!prompt) {
       logApiEvent("api_generate_invalid_preset", LEVEL.ERROR, { presetId });
       return NextResponse.json(
-        { error: "风格预设无效，请重新选择。" },
+        { success: false, error: "风格预设无效，请重新选择。" },
         { status: 400 },
       );
     }
 
-    // --- OpenAI Call ---
+    try {
+      reservation = cycleId
+        ? await reserveRetryGeneration({
+            apiKey,
+            cycleId,
+            presetId,
+            imageHash: validatedImage.data.imageHash,
+          })
+        : await reservePaidGeneration({
+            apiKey,
+            presetId,
+            imageHash: validatedImage.data.imageHash,
+          });
+    } catch (creditError) {
+      return handleReservationError(creditError);
+    }
+
     let normalizedResponse: ProviderResponse;
     try {
       normalizedResponse = await generateImageWithOpenAI(
-        image,
-        imageType,
+        validatedImage.data.base64,
+        validatedImage.data.imageType,
         prompt,
       );
     } catch (openaiError) {
+      const errorMessage = String(openaiError);
       logApiEvent("api_generate_provider_error", LEVEL.ERROR, {
-        error: String(openaiError),
+        error: errorMessage,
+        cycleId: reservation.cycleId,
+        attemptId: reservation.attemptId,
       });
 
-      // Refund credits if needed
-      if (isNewCycle && remainingCredits !== undefined) {
-        await refundCredits(apiKey, remainingCredits);
-      }
-
-      await handleProviderFailure(apiKey, consecutive_failures);
-
-      return NextResponse.json(
-        { success: false, error: "服务器繁忙，请稍后重试或更换风格。" },
-        { status: 500 },
-      );
-    }
-
-    // --- Analyze Result ---
-    const analysis = analyzeApiResult(normalizedResponse);
-
-    if (process.env.NODE_ENV === "development")
-      console.log(
-        "Full provider response: ",
-        normalizedResponse,
-        "\n",
-        "Analysis:",
-        analysis,
+      const completion = await markAttemptFailedSafe(
+        reservation.attemptId,
+        errorMessage,
+        reservation,
       );
 
-    if (!analysis.success) {
-      if (isNewCycle && remainingCredits !== undefined)
-        await refundCredits(apiKey, remainingCredits);
-
-      await handleProviderFailure(apiKey, consecutive_failures);
-
-      logApiEvent("api_generate_failure", LEVEL.ERROR, {
-        presetId,
-        apiKey: "***",
-        error: analysis.error,
-      });
       return NextResponse.json(
         {
           success: false,
-          error: analysis.error || "获取图片结果失败，请稍后重试。",
+          error: "服务器繁忙，请稍后重试或更换风格。",
+          ...generationState(completion),
         },
         { status: 500 },
       );
     }
 
+    const analysis = analyzeApiResult(normalizedResponse);
+
+    if (!analysis.success) {
+      const completion = await markAttemptFailedSafe(
+        reservation.attemptId,
+        analysis.error || "provider_response_missing_image",
+        reservation,
+      );
+
+      logApiEvent("api_generate_failure", LEVEL.ERROR, {
+        presetId,
+        apiKey: "***",
+        cycleId: reservation.cycleId,
+        attemptId: reservation.attemptId,
+        error: analysis.error || "provider_response_missing_image",
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: analysis.error || "获取图片结果失败，请稍后重试。",
+          ...generationState(completion),
+        },
+        { status: 500 },
+      );
+    }
+
+    const completion = await markAttemptSucceededSafe(
+      reservation.attemptId,
+      reservation,
+    );
+
     logApiEvent("api_generate_success", LEVEL.INFO, {
       presetId,
       apiKey: "***",
-      isRetry,
-      isNewCycle,
+      cycleId: completion.cycleId,
+      isRetry: completion.isRetry,
+      isNewCycle: completion.isNewCycle,
       imageUrl: analysis.imageUrl,
       "tokens.prompt_tokens": analysis.tokens.prompt_tokens,
       "tokens.completion_tokens": analysis.tokens.completion_tokens,
@@ -196,23 +187,23 @@ export async function POST(req: Request) {
       }),
     });
 
-    await supabaseAdmin.rpc("increment_total_used", { key_value: apiKey });
-    await supabaseAdmin
-      .from("api_keys")
-      .update({ consecutive_failures: 0, blocked_until: null })
-      .eq("key", apiKey);
-
     return NextResponse.json({
       success: true,
       tokens: analysis.tokens,
       imageUrl: analysis.imageUrl,
       downloadUrl: analysis.downloadUrl,
       prompt: analysis.prompt,
-      remainingCredits,
-      isRetry,
-      isNewCycle,
+      ...generationState(completion),
     });
   } catch (err: unknown) {
+    if (reservation) {
+      await markAttemptFailedSafe(
+        reservation.attemptId,
+        String(err),
+        reservation,
+      );
+    }
+
     logApiEvent("api_generate_internal_error", LEVEL.ERROR, {
       error: String(err),
     });
@@ -223,59 +214,232 @@ export async function POST(req: Request) {
   }
 }
 
-// --- Helpers ---
+async function parseJsonRequest(
+  req: Request,
+): Promise<
+  { success: true; data: GenerateRequest } | { success: false; error: string }
+> {
+  try {
+    const json = await req.json();
+    const parsed = generateRequestSchema.safeParse(json);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "参数缺失，请检查密钥、风格和图片是否填写完整。",
+      };
+    }
+    return { success: true, data: parsed.data };
+  } catch {
+    return { success: false, error: "请求格式无效。" };
+  }
+}
 
-async function validateAndDeductCredits(apiKey: string, isRetry: boolean) {
-  const { data: keyData, error: keyError } = await supabaseAdmin
-    .from("api_keys")
-    .select("consecutive_failures, blocked_until, credits, status")
-    .eq("key", apiKey)
-    .single();
+async function validateImagePayload(
+  value: string,
+): Promise<
+  { success: true; data: ValidatedImage } | { success: false; error: string }
+> {
+  const base64 = value.includes(",") ? value.split(",").pop() || "" : value;
+  const normalized = base64.replace(/\s/g, "");
 
-  if (keyError) throw new Error("db_error:" + keyError.message);
-
-  if (!keyData) throw new Error("invalid_key");
-
-  if (keyData.status !== "active") throw new Error("key_revoked");
-
-  if (keyData.blocked_until && new Date(keyData.blocked_until) > new Date()) {
-    throw new Error("blocked_until:" + keyData.blocked_until);
+  if (
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) ||
+    normalized.length % 4 !== 0
+  ) {
+    return { success: false, error: "图片数据无效，请重新上传。" };
   }
 
-  if (isRetry) return { remainingCredits: keyData.credits, isNewCycle: false };
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(normalized, "base64");
+  } catch {
+    return { success: false, error: "图片数据无效，请重新上传。" };
+  }
 
-  if (keyData.credits < 1) throw new Error("no_credits");
+  if (buffer.length === 0 || buffer.toString("base64") !== normalized) {
+    return { success: false, error: "图片数据无效，请重新上传。" };
+  }
 
-  const { error: updateError } = await supabaseAdmin
-    .from("api_keys")
-    .update({ credits: keyData.credits - 1 })
-    .eq("key", apiKey);
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    return { success: false, error: "图片大小不能超过10MB。" };
+  }
 
-  if (updateError) throw new Error("deduct_failed:" + updateError.message);
+  const imageType = detectStrictImageType(buffer, normalized);
+  if (!SUPPORTED_IMAGE_TYPES.has(imageType)) {
+    return {
+      success: false,
+      error: "不支持的图片格式，请上传 JPG、PNG、WebP 或 HEIC 图片。",
+    };
+  }
+
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  const imageHash = Buffer.from(digest).toString("hex");
 
   return {
-    remainingCredits: keyData.credits - 1,
-    isNewCycle: true,
-    consecutive_failures: keyData.consecutive_failures ?? 0,
+    success: true,
+    data: {
+      base64: normalized,
+      imageType,
+      imageHash,
+    },
   };
 }
 
-async function handleProviderFailure(
-  apiKey: string,
-  currentFailures: number | undefined | null,
-) {
-  const newFailures = (currentFailures ?? 0) + 1;
-  const updates: Record<string, unknown> = {
-    consecutive_failures: newFailures,
-  };
-
-  if (newFailures >= FAILURE_THRESHOLD) {
-    updates.blocked_until = new Date(
-      Date.now() + BLOCK_MINUTES * 60 * 1000,
-    ).toISOString();
+function detectStrictImageType(buffer: Buffer, base64: string) {
+  if (buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) {
+    return "jpeg";
   }
 
-  await supabaseAdmin.from("api_keys").update(updates).eq("key", apiKey);
+  if (
+    buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
+    return "png";
+  }
+
+  if (
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "webp";
+  }
+
+  if (
+    buffer.subarray(0, 4).toString("ascii") === "II*\u0000" ||
+    buffer.subarray(0, 4).toString("ascii") === "MM\u0000*"
+  ) {
+    return "tiff";
+  }
+
+  const detected = detectImageType(base64);
+  return detected === "heic" ? detected : "unknown";
+}
+
+function getPresetPrompt(presetId: string) {
+  return STYLE_CATEGORIES.flatMap((category) => category.presets).find(
+    (preset) => preset.id === presetId && preset.enabled,
+  )?.prompt;
+}
+
+function handleReservationError(error: unknown) {
+  const msg = error instanceof Error ? error.message : String(error);
+
+  if (msg === "invalid_key") {
+    logApiEvent("api_generate_invalid_key", LEVEL.ERROR, { apiKey: "***" });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "无效或未激活的密钥",
+        details: "未找到有效密钥",
+      },
+      { status: 401 },
+    );
+  }
+
+  if (msg === "key_revoked") {
+    return NextResponse.json(
+      { success: false, error: "密钥已被禁用" },
+      { status: 401 },
+    );
+  }
+
+  if (msg.startsWith("blocked_until:")) {
+    logApiEvent("api_generate_blocked", LEVEL.WARN, {
+      apiKey: "***",
+      blocked_until: msg.slice("blocked_until:".length),
+    });
+    return NextResponse.json(
+      { success: false, error: "服务繁忙，请稍后再试。" },
+      { status: 429 },
+    );
+  }
+
+  if (msg === "no_credits") {
+    logApiEvent("api_generate_no_credits", LEVEL.WARN, { apiKey: "***" });
+    return NextResponse.json(
+      { success: false, error: "次数不足，请购买更多次数" },
+      { status: 402 },
+    );
+  }
+
+  if (msg === "cycle_not_found") {
+    return NextResponse.json(
+      { success: false, error: "重试记录不存在，请重新开始生成。" },
+      { status: 404 },
+    );
+  }
+
+  if (msg === "cycle_mismatch") {
+    return NextResponse.json(
+      { success: false, error: "重试内容与原绘画周期不匹配，请重新开始生成。" },
+      { status: 409 },
+    );
+  }
+
+  if (msg === "cycle_closed" || msg === "retry_limit_exceeded") {
+    return NextResponse.json(
+      { success: false, error: "免费重试次数已用完，请开始新的绘画周期。" },
+      { status: 409 },
+    );
+  }
+
+  logApiEvent("api_generate_credit_unknown_error", LEVEL.ERROR, {
+    error: msg,
+  });
+  return NextResponse.json(
+    { success: false, error: "余额查询失败，请稍后重试。" },
+    { status: 500 },
+  );
+}
+
+async function markAttemptFailedSafe(
+  attemptId: string,
+  errorMessage: string,
+  fallback: GenerationReservation,
+) {
+  try {
+    return await recordGenerationFailure(attemptId, errorMessage);
+  } catch (error) {
+    logApiEvent("api_generate_accounting_failure", LEVEL.ERROR, {
+      attemptId,
+      error: String(error),
+    });
+    return fallback;
+  }
+}
+
+async function markAttemptSucceededSafe(
+  attemptId: string,
+  fallback: GenerationReservation,
+) {
+  try {
+    return await recordGenerationSuccess(attemptId);
+  } catch (error) {
+    logApiEvent("api_generate_accounting_success_failure", LEVEL.ERROR, {
+      attemptId,
+      error: String(error),
+    });
+    return fallback;
+  }
+}
+
+function generationState(state: {
+  cycleId: string;
+  remainingCredits: number;
+  retryCount: number;
+  maxRetries: number;
+  isRetry: boolean;
+  isNewCycle: boolean;
+}) {
+  return {
+    cycleId: state.cycleId,
+    remainingCredits: state.remainingCredits,
+    retryCount: state.retryCount,
+    maxRetries: state.maxRetries,
+    isRetry: state.isRetry,
+    isNewCycle: state.isNewCycle,
+  };
 }
 
 async function generateImageWithOpenAI(
@@ -297,61 +461,84 @@ async function generateImageWithOpenAI(
   ];
 
   const providerResponse = await openai.chat.completions.create({
+    stream: true,
     model: process.env.OPENAI_MODEL as string,
     messages: [{ role: "user", content: messageContent }],
   });
 
-  const usage = providerResponse.usage ?? {
+  let fullContent = "";
+  const metadata: StreamMetadata = {
+    id: "",
+    object: "chat.completion",
+    created: 0,
+    model: process.env.OPENAI_MODEL ?? "",
+    finishReason: "stop",
+  };
+
+  for await (const chunk of providerResponse) {
+    metadata.id = chunk.id ?? metadata.id;
+    metadata.object = chunk.object ?? metadata.object;
+    metadata.created = chunk.created ?? metadata.created;
+    metadata.model = chunk.model ?? metadata.model;
+    metadata.finishReason =
+      chunk.choices?.[0]?.finish_reason ?? metadata.finishReason;
+
+    const usage = "usage" in chunk ? chunk.usage : undefined;
+    if (usage) metadata.usage = normalizeUsage(usage);
+
+    const content = chunk.choices?.[0]?.delta?.content;
+    if (content) fullContent += content;
+  }
+
+  return {
+    id: metadata.id,
+    object: metadata.object,
+    created: metadata.created,
+    model: metadata.model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: fullContent,
+        },
+        finish_reason: metadata.finishReason,
+      },
+    ],
+    usage: metadata.usage ?? emptyUsage(),
+  };
+}
+
+function normalizeUsage(usage: {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  prompt_tokens_details?: unknown;
+  completion_tokens_details?: unknown;
+}): ProviderUsage {
+  return {
+    prompt_tokens: usage.prompt_tokens ?? 0,
+    completion_tokens: usage.completion_tokens ?? 0,
+    total_tokens: usage.total_tokens ?? 0,
+    prompt_tokens_details: toNumberRecord(usage.prompt_tokens_details),
+    completion_tokens_details: toNumberRecord(usage.completion_tokens_details),
+  };
+}
+
+function emptyUsage(): ProviderUsage {
+  return {
     prompt_tokens: 0,
     completion_tokens: 0,
     total_tokens: 0,
   };
-
-  return {
-    id: providerResponse.id,
-    object: providerResponse.object,
-    created: providerResponse.created,
-    model: providerResponse.model,
-    choices: providerResponse.choices.map((choice) => ({
-      index: choice.index,
-      message: {
-        role: choice.message.role,
-        content: choice.message.content ?? "",
-      },
-      finish_reason: choice.finish_reason ?? "",
-    })),
-    usage: {
-      prompt_tokens: usage.prompt_tokens,
-      completion_tokens: usage.completion_tokens,
-      total_tokens: usage.total_tokens,
-      prompt_tokens_details: getTokensDetails(usage, "prompt_tokens_details"),
-      completion_tokens_details: getTokensDetails(
-        usage,
-        "completion_tokens_details",
-      ),
-    },
-  };
 }
 
-async function refundCredits(apiKey: string, remainingCredits: number) {
-  await supabaseAdmin
-    .from("api_keys")
-    .update({ credits: remainingCredits + 1 })
-    .eq("key", apiKey);
-}
+function toNumberRecord(value: unknown) {
+  if (!value || typeof value !== "object") return undefined;
 
-function getTokensDetails(
-  obj: unknown,
-  key: string,
-): Record<string, number> | undefined {
-  if (obj && typeof obj === "object" && key in obj) {
-    const val = (obj as Record<string, unknown>)[key];
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      // Check all values are numbers
-      if (Object.values(val).every((v) => typeof v === "number")) {
-        return val as Record<string, number>;
-      }
-    }
-  }
-  return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, number] => {
+      return typeof entry[1] === "number";
+    }),
+  );
 }

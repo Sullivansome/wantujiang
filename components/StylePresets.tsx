@@ -46,14 +46,16 @@ export function StylePresets({
           const isCategoryDisabled = disabled && !hasCurrentPreset;
 
           return (
-            <div
+            <button
+              type="button"
               key={category.id}
               onClick={() => {
                 if (!isCategoryDisabled) {
                   setSelectedCategory(category);
                 }
               }}
-              className={`group relative cursor-pointer overflow-hidden rounded-lg border transition-all ${
+              disabled={isCategoryDisabled}
+              className={`group focus-visible:ring-primary relative overflow-hidden rounded-lg border text-left transition-all focus-visible:ring-2 focus-visible:outline-none ${
                 isCategoryDisabled
                   ? "cursor-not-allowed border-gray-200 opacity-60"
                   : "hover:border-primary hover:shadow-md"
@@ -78,7 +80,7 @@ export function StylePresets({
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -105,7 +107,8 @@ export function StylePresets({
                   const isPresetDisabled = disabled && !isSelected;
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={preset.id}
                       onClick={() => {
                         if (!isPresetDisabled) {
@@ -113,7 +116,8 @@ export function StylePresets({
                           setSelectedCategory(null);
                         }
                       }}
-                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                      disabled={isPresetDisabled}
+                      className={`focus-visible:ring-primary rounded-lg border p-3 text-left transition-all focus-visible:ring-2 focus-visible:outline-none ${
                         isPresetDisabled
                           ? "cursor-not-allowed opacity-60"
                           : isSelected
@@ -133,7 +137,7 @@ export function StylePresets({
                       <p className="text-muted-foreground text-sm">
                         {preset.description}
                       </p>
-                    </div>
+                    </button>
                   );
                 })}
             </div>

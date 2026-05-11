@@ -22,6 +22,8 @@ export function useImageGeneration() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [remainingCredits, setRemainingCredits] = useState<number | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
+  const [maxRetries, setMaxRetries] = useState<number>(2);
+  const [cycleId, setCycleId] = useState<string | null>(null);
   const [isNewCycleStarting, setIsNewCycleStarting] = useState(false);
 
   // Timer ref for cleanup
@@ -47,6 +49,8 @@ export function useImageGeneration() {
 
   const handleFileSelect = async (file: File) => {
     setRetryCount(0);
+    setMaxRetries(2);
+    setCycleId(null);
     setError("");
     setGeneratedImages([]);
     setCurrentImageIndex(0);
@@ -95,7 +99,8 @@ export function useImageGeneration() {
       return;
     }
 
-    const isCurrentActionARetry = generatedImages.length > 0 && retryCount < 2;
+    const isCurrentActionARetry =
+      generatedImages.length > 0 && Boolean(cycleId) && retryCount < maxRetries;
 
     if (!isCurrentActionARetry && generatedImages.length > 0) {
       setIsNewCycleStarting(true);
@@ -129,7 +134,7 @@ export function useImageGeneration() {
           apiKey,
           image: base64Data,
           presetId: selectedPreset,
-          isRetry,
+          ...(isRetry && cycleId ? { cycleId } : {}),
         }),
       });
 
@@ -172,18 +177,20 @@ export function useImageGeneration() {
       const duration = Date.now() - start;
       setRequestTimes((prev) => [...prev, duration]);
 
-      if (isRetry) {
-        setRetryCount((prev) => prev + 1);
-      } else {
-        setRetryCount(0);
-      }
+      setCycleId(result.cycleId ?? null);
+      setRetryCount(
+        typeof result.retryCount === "number" ? result.retryCount : 0,
+      );
+      setMaxRetries(
+        typeof result.maxRetries === "number" ? result.maxRetries : 2,
+      );
 
       if (result.remainingCredits !== undefined) {
         setRemainingCredits(result.remainingCredits);
       }
       logFrontendEvent("image_generated", LEVEL.INFO, {
         presetId: selectedPreset,
-        isRetry,
+        isRetry: Boolean(result.isRetry),
         duration,
       });
     } catch (err) {
@@ -277,6 +284,10 @@ export function useImageGeneration() {
     setRemainingCredits,
     retryCount,
     setRetryCount,
+    maxRetries,
+    setMaxRetries,
+    cycleId,
+    setCycleId,
     isNewCycleStarting,
     setIsNewCycleStarting,
     handleFileSelect,
