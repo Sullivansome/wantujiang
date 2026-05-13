@@ -62,6 +62,10 @@ const STYLE_COMPARISONS = [
   },
 ];
 
+const ALL_GALLERY_IMAGES = GALLERY_CATEGORIES.flatMap(
+  (category) => category.images,
+);
+
 // Testimonials
 // const TESTIMONIALS = [
 //   {
@@ -88,20 +92,12 @@ const STYLE_COMPARISONS = [
 
 export default function Home() {
   const [activeComparisonTab, setActiveComparisonTab] = useState("吉卜力风格");
-  const [allGalleryImages, setAllGalleryImages] = useState<string[]>([]);
+  const allGalleryImages = ALL_GALLERY_IMAGES;
 
   // Refs for the waterfall rows
   const row1Ref = useRef<HTMLDivElement>(null);
   const row2Ref = useRef<HTMLDivElement>(null);
   const row3Ref = useRef<HTMLDivElement>(null);
-
-  // Prepare all gallery images for the waterfall
-  useEffect(() => {
-    const images = GALLERY_CATEGORIES.flatMap((category) => category.images);
-    // Shuffle the images for variety
-    const shuffled = [...images].sort(() => 0.5 - Math.random());
-    setAllGalleryImages(shuffled);
-  }, []);
 
   // Animate the waterfall rows
   useEffect(() => {
@@ -157,7 +153,7 @@ export default function Home() {
                 size="lg"
                 className="text-md relative z-10 h-12 px-8 shadow-lg"
               >
-                <Link href="/generate" legacyBehavior={false}>
+                <Link href="/generate">
                   立即体验
                 </Link>
               </Button>
@@ -167,7 +163,7 @@ export default function Home() {
                 size="lg"
                 className="text-md relative z-10 h-12 px-8"
               >
-                <Link href="#gallery" legacyBehavior={false}>
+                <Link href="#gallery">
                   浏览作品集
                 </Link>
               </Button>

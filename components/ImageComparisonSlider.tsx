@@ -16,6 +16,7 @@ export function ImageComparisonSlider({
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isLoaded, setIsLoaded] = useState(false);
   const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
+  const [imagePair, setImagePair] = useState({ original, generated });
   const containerRef = useRef<HTMLDivElement>(null);
   const naturalSizeRef = useRef({
     original: { width: 0, height: 0 },
@@ -49,10 +50,11 @@ export function ImageComparisonSlider({
     setIsLoaded(true);
   }, []);
 
-  useEffect(() => {
+  if (imagePair.original !== original || imagePair.generated !== generated) {
+    setImagePair({ original, generated });
     setIsLoaded(false);
     setSliderPosition(50);
-  }, [original, generated]);
+  }
 
   useEffect(() => {
     calculateViewDimensions();

@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface EditKeyDialogProps {
   keyData: ApiKey | null;
@@ -36,14 +36,14 @@ export function EditKeyDialog({
   const [status, setStatus] = useState<"active" | "revoked">(
     keyData?.status || "active",
   );
+  const [editingId, setEditingId] = useState(keyData?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (keyData) {
-      setCredits(keyData.credits);
-      setStatus(keyData.status);
-    }
-  }, [keyData]);
+  if (keyData && keyData.id !== editingId) {
+    setEditingId(keyData.id);
+    setCredits(keyData.credits);
+    setStatus(keyData.status);
+  }
 
   const handleSubmit = async () => {
     if (!keyData) return;

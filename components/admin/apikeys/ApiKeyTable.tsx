@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 import {
   ColumnFiltersState,
   SortingState,
@@ -37,6 +37,8 @@ import { EditKeyDialog } from "./EditKeyDialog";
 import { NewKeyDialog } from "./NewKeyDialog";
 
 export function ApiKeyTable() {
+  "use no memo";
+
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function ApiKeyTable() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const table = useReactTable({
     data: keys,
@@ -69,7 +72,6 @@ export function ApiKeyTable() {
   useEffect(() => {
     const fetchKeys = async () => {
       try {
-        const supabase = createClientComponentClient();
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -95,10 +97,9 @@ export function ApiKeyTable() {
     };
 
     fetchKeys();
-  }, []);
+  }, [supabase]);
 
   const handleCreateKey = async (orderId: string, credits: number) => {
-    const supabase = createClientComponentClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -128,7 +129,6 @@ export function ApiKeyTable() {
   };
 
   const handleEditKey = async (id: string, updates: Partial<ApiKey>) => {
-    const supabase = createClientComponentClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();

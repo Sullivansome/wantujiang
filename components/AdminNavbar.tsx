@@ -1,14 +1,15 @@
 // components/AdminNavbar.tsx
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { Button } from "./ui/button";
 import Link from "next/link";
+import { useMemo } from "react";
 
 export function AdminNavbar() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

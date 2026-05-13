@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Image from "next/image";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -54,16 +54,18 @@ type FormData = z.infer<typeof formSchema>;
 export default function PricingPage() {
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const paymentProofRef = useRef<HTMLInputElement>(null);
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [paymentProofInputKey, setPaymentProofInputKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
     reset,
+    getValues,
     setValue,
+    control,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,7 +78,7 @@ export default function PricingPage() {
     },
   });
 
-  const paymentMethod = watch("paymentMethod");
+  const paymentMethod = useWatch({ control, name: "paymentMethod" });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,9 +100,11 @@ export default function PricingPage() {
         setPreviewImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+      setPaymentProofFile(file);
       setValue("hasPaymentProof", true, { shouldValidate: true });
     } else {
       setPreviewImage(null);
+      setPaymentProofFile(null);
       setValue("hasPaymentProof", false, { shouldValidate: true });
     }
   };
@@ -125,9 +129,8 @@ export default function PricingPage() {
         }
       });
 
-      // Append the image file if exists
-      if (paymentProofRef.current?.files?.[0]) {
-        formData.append("paymentProof", paymentProofRef.current.files[0]);
+      if (paymentProofFile) {
+        formData.append("paymentProof", paymentProofFile);
       }
 
       // Send to API route
@@ -146,9 +149,8 @@ export default function PricingPage() {
       // Reset form
       reset();
       setPreviewImage(null);
-      if (paymentProofRef.current) {
-        paymentProofRef.current.value = "";
-      }
+      setPaymentProofFile(null);
+      setPaymentProofInputKey((key) => key + 1);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "提交失败，请稍后再试",
@@ -173,7 +175,9 @@ export default function PricingPage() {
           <div className="flex gap-4">
             <Button
               variant={paymentMethod === "wechat" ? "default" : "outline"}
-              onClick={() => reset({ ...watch(), paymentMethod: "wechat" })}
+              onClick={() =>
+                reset({ ...getValues(), paymentMethod: "wechat" })
+              }
               className="flex-1"
             >
               微信支付
@@ -181,7 +185,9 @@ export default function PricingPage() {
 
             <Button
               variant={paymentMethod === "alipay" ? "default" : "outline"}
-              onClick={() => reset({ ...watch(), paymentMethod: "alipay" })}
+              onClick={() =>
+                reset({ ...getValues(), paymentMethod: "alipay" })
+              }
               disabled
               className="flex-1"
             >
@@ -241,14 +247,12 @@ export default function PricingPage() {
             <div className="space-y-2">
               <Label>上传支付截图</Label>
               <Input
+                key={paymentProofInputKey}
                 type="file"
                 id="paymentProofInput"
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="cursor-pointer"
-                ref={(e) => {
-                  paymentProofRef.current = e;
-                }}
               />
               {previewImage && (
                 <div className="mt-2 flex flex-col items-center">
@@ -268,9 +272,8 @@ export default function PricingPage() {
                     className="mt-2 text-red-500 hover:text-red-600"
                     onClick={() => {
                       setPreviewImage(null);
-                      if (paymentProofRef.current) {
-                        paymentProofRef.current.value = "";
-                      }
+                      setPaymentProofFile(null);
+                      setPaymentProofInputKey((key) => key + 1);
                       setValue("hasPaymentProof", false, {
                         shouldValidate: true,
                       });

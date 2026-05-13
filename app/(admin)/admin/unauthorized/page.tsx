@@ -2,12 +2,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 
 export default function UnauthorizedPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
